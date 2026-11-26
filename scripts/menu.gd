@@ -40,6 +40,7 @@ var cls_buttons: Array = []
 var gifts_box: VBoxContainer
 var reroll_btn: Button
 var lock_label: Label
+var new_hero_btn: Button
 var locked := false            # герой с таким именем уже есть: класс и дары закреплены
 
 
@@ -158,6 +159,9 @@ func _build_fate(parent: Control) -> void:
 	lock_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	lock_label.custom_minimum_size = Vector2(160, 0)
 	v.add_child(lock_label)
+	new_hero_btn = Kit.button("Новый герой", _new_hero)
+	new_hero_btn.tooltip_text = "Свободное имя — снова можно выбрать класс и перебросить дары"
+	v.add_child(new_hero_btn)
 	fate = Save.load_fate()
 	if not (fate.get("gifts") is Array) or Gifts.sanitize(fate.gifts).is_empty():
 		fate = {"gifts": Gifts.roll_fate(), "rerolls": Gifts.REROLLS}
@@ -171,6 +175,19 @@ func _cycle_class(keys: Array, dir: int) -> void:
 	cls = keys[(keys.find(cls) + dir + keys.size()) % keys.size()]
 	fate.cls = cls
 	Save.store_fate(fate)
+	_refresh_fate()
+
+
+## Подставляет свободное имя: у нового героя класс и дары снова выбираются.
+func _new_hero() -> void:
+	var n := ""
+	for i in 50:
+		n = "Герой%d" % (randi() % 9000 + 100)
+		if Save.peek_char(n).is_empty():
+			break
+	name_edit.text = n
+	Save.store_last_name(n)
+	Sfx.play("open")
 	_refresh_fate()
 
 
@@ -217,8 +234,9 @@ func _refresh_fate() -> void:
 	reroll_btn.visible = not locked
 	reroll_btn.disabled = int(fate.get("rerolls", 0)) <= 0
 	reroll_btn.text = "Перебросить (осталось %d)" % int(fate.get("rerolls", 0))
-	lock_label.text = "Герой «%s» уже создан: класс и дары закреплены." % name_edit.text.strip_edges() if locked \
-		else "Класс и дары выбираются один раз — при входе в мир."
+	lock_label.text = "Герой «%s» уже создан: класс и дары закреплены. Другое имя — новый герой." % name_edit.text.strip_edges() \
+		if locked else "Класс и дары выбираются один раз — при входе в мир."
+	new_hero_btn.visible = locked
 	Net.player_class = show_cls
 	Net.player_gifts = gifts
 	if doll:

@@ -62,6 +62,9 @@ static func _layer_source(layer: String, equip: Dictionary, look: Dictionary) ->
 			return "marks_" + look.marks if look.marks != "none" else ""
 		"headgear":
 			return "hair_%s_%s" % [look.hair, look.hair_color]
+		"hair_back":                                  # пряди за плечами; под шлемом их нет
+			var full: bool = head is Dictionary and head.base == "helm"
+			return "" if full else "hairb_%s_%s" % [look.hair, look.hair_color]
 		"beard":
 			return "beard_%s_%s" % [look.beard, look.hair_color] if look.beard != "none" else ""
 		"ears":
@@ -97,10 +100,11 @@ static func bake(equip: Dictionary, look: Dictionary = {}) -> Texture2D:
 	_load_meta()
 	look = sanitize_look(look)
 	var dy := int(meta.races[look.race].get("dy", 0))
+	var w := int(meta.races[look.race].get("w", 0))
 	var parts: Array = []
 	for layer in meta.layers:
 		parts.append([layer, _layer_source(layer, equip, look)])
-	var sig := "%s|%d" % [str(parts), dy]
+	var sig := "%s|%d|%d|%s" % [str(parts), dy, w, look.eyes]      # цвет глаз тоже меняет картинку
 	if _cache.has(sig):
 		return _cache[sig]
 	var out := Image.create(SHEET_SIZE.x, SHEET_SIZE.y, false, Image.FORMAT_RGBA8)
@@ -118,9 +122,34 @@ static func bake(equip: Dictionary, look: Dictionary = {}) -> Texture2D:
 		else:
 			out.blend_rect(src, rect, Vector2i(0, dy))
 	_recolor_eyes(out, EYES[look.eyes])
+	if w != 0:
+		out = _reshape(out, w)
 	var tex := ImageTexture.create_from_image(out)
 	_cache[sig] = tex
 	return tex
+
+
+## Телосложение расы: w > 0 раздвигает левую и правую половины кадра от оси (орк, дварф — шире,
+## повторяя центральные столбцы), w < 0 вынимает столбец у оси (эльф, гоблин, нежить — уже).
+## Делается по готовому кадру, поэтому голова, волосы и броня меняются вместе с телом.
+static func _reshape(src: Image, w: int) -> Image:
+	var out := Image.create(src.get_width(), src.get_height(), false, Image.FORMAT_RGBA8)
+	var mid := CELL >> 1                                 # ось тела: между столбцами 23 и 24
+	for row in 3:
+		for col in FRAMES:
+			var o := Vector2i(col * CELL, row * CELL)
+			if w > 0:
+				var a := w / 2
+				out.blit_rect(src, Rect2i(o + Vector2i(a, 0), Vector2i(mid - a, CELL)), o)
+				out.blit_rect(src, Rect2i(o + Vector2i(mid, 0), Vector2i(mid - a, CELL)), o + Vector2i(mid + a, 0))
+				for i in a:
+					out.blit_rect(src, Rect2i(o + Vector2i(mid - 1, 0), Vector2i(1, CELL)), o + Vector2i(mid - 1 - i, 0))
+					out.blit_rect(src, Rect2i(o + Vector2i(mid, 0), Vector2i(1, CELL)), o + Vector2i(mid + i, 0))
+			else:
+				var k := -w
+				out.blit_rect(src, Rect2i(o, Vector2i(mid, CELL)), o)
+				out.blit_rect(src, Rect2i(o + Vector2i(mid + k, 0), Vector2i(mid - k, CELL)), o + Vector2i(mid, 0))
+	return out
 
 
 ## Радужка нарисована цветом-ключом — меняем на выбранный цвет глаз.

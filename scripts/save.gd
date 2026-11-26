@@ -1,9 +1,25 @@
 extends Node
 ## Сохранения: персонаж хранится у каждого игрока, счётчик серийных номеров — у хоста.
 
-const CHAR_DIR := "user://chars"
-const WORLD_PATH := "user://world.json"
-const LAST_NAME_PATH := "user://last_name.txt"
+# Пути — переменные: автотест (--autotest) пишет в user://autotest/, чтобы его герои, имя,
+# судьба и мир не попадали в настоящую игру.
+var ROOT := "user://"
+var CHAR_DIR := "user://chars"
+var WORLD_PATH := "user://world.json"
+var LAST_NAME_PATH := "user://last_name.txt"
+var LOOK_PATH := "user://last_look.json"
+var FATE_PATH := "user://fate.json"
+
+
+func _init() -> void:
+	if OS.get_cmdline_user_args().has("--autotest"):
+		ROOT = "user://autotest/"
+		DirAccess.make_dir_recursive_absolute(ROOT)
+		CHAR_DIR = ROOT + "chars"
+		WORLD_PATH = ROOT + "world.json"
+		LAST_NAME_PATH = ROOT + "last_name.txt"
+		LOOK_PATH = ROOT + "last_look.json"
+		FATE_PATH = ROOT + "fate.json"
 
 
 func _char_path(pname: String) -> String:
@@ -168,7 +184,6 @@ func store_last_name(n: String) -> void:
 		f.store_string(n)
 
 
-const LOOK_PATH := "user://last_look.json"
 
 
 func load_look() -> Dictionary:
@@ -188,7 +203,6 @@ func store_look(look: Dictionary) -> void:
 # ---------- судьба до создания героя ----------
 # Выпавшие дары и оставшиеся перебросы хранятся до тех пор, пока герой не создан,
 # чтобы перезапуск меню не давал бросать заново.
-const FATE_PATH := "user://fate.json"
 
 
 func load_fate() -> Dictionary:

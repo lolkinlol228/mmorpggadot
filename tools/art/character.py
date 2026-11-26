@@ -14,7 +14,7 @@ CELL = 32 + 2 * CELL_PAD
 # 0-1 стойка, 2-5 ходьба, 6-9 бег, 10-12 рубящий удар, 13-15 удар сверху, 16-18 укол, 19 взаимодействие, 20 урон
 FRAMES = ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "run0", "run1", "run2", "run3",
           "slash0", "slash1", "slash2", "chop0", "chop1", "chop2", "stab0", "stab1", "stab2", "use", "hurt"]
-LAYERS = ["weapon_back", "legs", "feet", "arms_back", "hands_back", "skirt", "torso", "tail", "weapon",
+LAYERS = ["hair_back", "weapon_back", "legs", "feet", "arms_back", "hands_back", "skirt", "torso", "tail", "weapon",
           "arms_front", "hands", "head", "marks", "beard", "headgear", "ears", "hat"]
 SEX = "m"                # текущий пол при генерации: "m" / "f" (влияет на фигуру и лицо)
 EYE_KEY = (255, 0, 255)  # цвет-ключ радужки: в игре заменяется выбранным цветом глаз
@@ -26,13 +26,14 @@ SKIN_TONES = {"light": (232, 184, 150), "mid": (204, 146, 108), "dark": (132, 90
               "moss": (98, 132, 80), "ash": (168, 168, 176), "bluish": (150, 168, 190),
               "lime": (158, 186, 84), "khaki": (172, 162, 104), "greygreen": (128, 148, 118)}
 RACES = {
+    # dy — рост (сдвиг верха тела), w — ширина фигуры в пикселях (игра растягивает/сужает собранный кадр)
     "human": {"tones": ["light", "mid", "dark"]},
-    "elf": {"tones": ["light", "pale", "mid"], "dy": -1},
-    "dwarf": {"tones": ["light", "mid", "dark"], "dy": 2},
-    "orc": {"tones": ["green", "olive", "moss"]},
-    "undead": {"tones": ["pale", "ash", "bluish"]},
+    "elf": {"tones": ["light", "pale", "mid"], "dy": -1, "w": -1},
+    "dwarf": {"tones": ["light", "mid", "dark"], "dy": 2, "w": 2},
+    "orc": {"tones": ["green", "olive", "moss"], "w": 4},
+    "undead": {"tones": ["pale", "ash", "bluish"], "w": -1},
     "felin": {"tones": ["light", "mid", "dark"]},
-    "goblin": {"tones": ["lime", "khaki", "greygreen"], "dy": 3},
+    "goblin": {"tones": ["lime", "khaki", "greygreen"], "dy": 3, "w": -1},
 }
 HAIR_COLORS = {"brown": (112, 72, 46), "black": (50, 46, 60), "blond": (226, 188, 112),
                "red": (180, 80, 46), "white": (214, 214, 226)}
@@ -399,28 +400,42 @@ def hands_part(layer, d, f, tone):
 
 # ---------------- hair ----------------
 
+def hair_back_part(d, f, style, color):
+    """Волосы, которые спадают ЗА плечи (вид спереди): рисуются под телом и руками,
+    чтобы длинные пряди не закрывали плечи, как шлем."""
+    if d != 0 or style != "long":
+        return None
+    m = Mat(HAIR_COLORS[color], tex=tex_strands)
+    g = skel(d, f)
+    cx, cy = g["head"]
+    c = Canvas(32, 32, pad=CELL_PAD)
+    for sgn in (-1, 1):
+        c.capsule(cx - 0.5 + sgn * 6.4, cy + 1, cx - 0.5 + sgn * 7.4, cy + 10, 2.1, m, z=-4)
+    return c.render()
+
+
 def hair_part(d, f, style, color):
     m = Mat(HAIR_COLORS[color], tex=tex_strands)
     g = skel(d, f)
     cx, cy = g["head"]
     c = Canvas(32, 32, pad=CELL_PAD)
 
-    def fringe_down(x, y):
-        bang = cy - 1.5 + (1.4 if (x % 3 == 0) else 0.0)
-        side = x < cx - 5 or x > cx + 4
-        return y <= (cy + 2.5 if side else bang)
+    def fringe_down(x, y):                    # чёлка выше бровей: лоб и глаза открыты
+        bang = cy - 2.4 + (1.0 if (x % 3 == 0) else 0.0)
+        side = x < cx - 5.5 or x > cx + 4.5
+        return y <= (cy + 1.5 if side else bang)
 
     if d == 0:
-        c.sphere(cx - 0.5, cy - 0.9, 7.0, 6.2, m, keep=fringe_down)
+        c.sphere(cx - 0.5, cy - 1.0, 6.8, 6.0, m, keep=fringe_down)
     elif d == 1:
-        c.sphere(cx - 0.5, cy - 0.4, 7.0, 6.4, m, keep=lambda x, y: y <= cy + 4)
+        c.sphere(cx - 0.5, cy - 0.4, 6.9, 6.3, m, keep=lambda x, y: y <= cy + 4)
     else:
-        c.sphere(cx - 1.0, cy - 0.9, 6.6, 6.0, m,
-                 keep=lambda x, y: y <= (cy - 1.2 + (1.2 if x % 3 == 0 else 0)) if x > cx + 0.5 else y <= cy + 3.5)
+        c.sphere(cx - 1.0, cy - 1.0, 6.5, 5.9, m,
+                 keep=lambda x, y: y <= (cy - 2.2 + (1.0 if x % 3 == 0 else 0)) if x > cx + 0.5 else y <= cy + 3.0)
     if style == "long":
-        if d == 0:
+        if d == 0:                            # у лица — короткие пряди, остальное за плечами (hair_back_part)
             for sgn in (-1, 1):
-                c.capsule(cx - 0.5 + sgn * 6.2, cy - 1, cx - 0.5 + sgn * 6.6, cy + 9, 1.9, m, z=4)
+                c.capsule(cx - 0.5 + sgn * 6.3, cy - 1, cx - 0.5 + sgn * 6.5, cy + 3, 1.6, m, z=4)
         elif d == 1:
             c.capsule(cx - 0.5, cy, cx - 0.5, cy + 11, 5.2, m, z=-2)
         else:
@@ -449,7 +464,7 @@ def hair_part(d, f, style, color):
     elif style == "bob":                                                    # каре до подбородка
         if d == 0:
             for sgn in (-1, 1):
-                c.capsule(cx - 0.5 + sgn * 6.0, cy - 2, cx - 0.5 + sgn * 6.3, cy + 4.5, 2.2, m, z=4)
+                c.capsule(cx - 0.5 + sgn * 6.3, cy - 2, cx - 0.5 + sgn * 6.5, cy + 3.5, 1.7, m, z=4)
         elif d == 1:
             c.capsule(cx - 0.5, cy, cx - 0.5, cy + 4.5, 6.2, m, z=-2)
         else:

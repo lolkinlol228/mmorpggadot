@@ -92,6 +92,7 @@ def build_char(preview_path=None):
     for style in ch.HAIR_STYLES:                    # общее для обоих полов (голова одна и та же)
         for color in ch.HAIR_COLORS:
             L[f"hair_{style}_{color}"] = ch.sheet(lambda d, f, s=style, cc=color: ch.hair_part(d, f, s, cc))
+            L[f"hairb_{style}_{color}"] = ch.sheet(lambda d, f, s=style, cc=color: ch.hair_back_part(d, f, s, cc))
     for color in ch.HAIR_COLORS:
         for bs in ch.BEARDS:
             L[f"beard_{bs}_{color}"] = ch.sheet(lambda d, f, b=bs, cc=color: ch.beard_part(d, f, b, cc))
@@ -135,6 +136,8 @@ def build_char(preview_path=None):
                     name = f"{sex}_{layer}_{tone}"
                 elif layer == "headgear":
                     name = f"hair_{style}_{color}"
+                elif layer == "hair_back":
+                    name = f"hairb_{style}_{color}"
                 elif layer == "beard":
                     b = "full" if race == "dwarf" and sex == "m" else beard
                     name = f"beard_{b}_{color}" if b else None
