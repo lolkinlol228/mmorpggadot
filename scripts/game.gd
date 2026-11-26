@@ -16,6 +16,7 @@ const Interact := preload("res://scripts/interact.gd")
 var client_input
 var client_combat
 var client_inventory
+var client_adventure
 var interact
 var open_spot := -1
 
@@ -58,6 +59,8 @@ const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot":
 
 
 func _ready() -> void:
+	client_adventure = preload("res://scripts/client_adventure.gd").new()
+	client_adventure.game = self
 	client_inventory = preload("res://scripts/client_inventory.gd").new()
 	client_inventory.game = self
 	client_combat = preload("res://scripts/client_combat.gd").new()
@@ -236,25 +239,7 @@ func cancel_trade() -> void:
 
 ## Взаимодействие с отмеченным объектом (хранилище, лавка, доска, житель).
 func use_spot() -> void:
-	if me.is_empty() or int(me.hp) <= 0:
-		return
-	if interact.focused < 0:
-		adventure("field")
-		return
-	var sp: Dictionary = interact.spot(interact.focused)
-	if Vector2(sp.x, sp.y).distance_to(my_pos) > 70.0:
-		ui.add_feed("Подойди ближе.", GREY)
-		return
-	if sp.kind == "adventure":
-		if sp.action == "workshop":
-			ui.adventure_panel.show_page(true)
-		else:
-			adventure("spot", sp.id)
-		return
-	open_spot = interact.focused
-	if player_views.has(my_id):
-		player_views[my_id].use()
-	ui.shop.open(sp.kind, sp)
+	client_adventure.use_spot()
 
 
 func eco(op: String, arg := "") -> void:
@@ -554,7 +539,7 @@ var adventure_marks := {}
 
 ## Посылает запрос на действие в мире.
 func adventure(op: String, arg: String = "") -> void:
-	_to_host("h_adventure", [op, arg])
+	client_adventure.adventure(op, arg)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -565,25 +550,17 @@ func h_adventure(op: String, arg: String) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_adventure_control(stun: bool, seconds: float) -> void:
-	var until := Time.get_ticks_msec() + roundi(seconds * 1000.0)
-	if stun:
-		stun_local_until = until
-		dash_left = 0.0
-	else:
-		slow_local_until = until
+	client_adventure.c_adventure_control(stun, seconds)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_adventure_mark(id: String, pos: Vector2, show_mark: bool) -> void:
-	if show_mark:
-		adventure_marks[id] = pos
-	else:
-		adventure_marks.erase(id)
+	client_adventure.c_adventure_mark(id, pos, show_mark)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_world_pulse(pos: Vector2, radius: float, color: Color) -> void:
-	fx.burst(pos, color, clampi(roundi(radius * 0.4), 5, 36), radius > 40.0)
+	client_adventure.c_world_pulse(pos, radius, color)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -599,17 +576,4 @@ func c_dash_reset() -> void:
 ## Показывает полупрозрачный силуэт на месте рывка.
 @rpc("authority", "call_remote", "reliable")
 func c_adventure_decoy(pid: int, pos: Vector2, duration: float) -> void:
-	var source = player_views.get(pid)
-	if source == null:
-		return
-	var image := PlayerView.new()
-	image.equip = source.equip
-	image.look = source.look
-	image.pname = "Копия"
-	image.npc = true
-	image.position = pos
-	image.target = pos
-	image.facing = source.facing
-	image.modulate = Color(0.55, 0.76, 1.0, 0.58)
-	entities.add_child(image)
-	get_tree().create_timer(duration).timeout.connect(image.queue_free)
+	client_adventure.c_adventure_decoy(pid, pos, duration)
