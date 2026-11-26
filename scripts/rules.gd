@@ -1,4 +1,6 @@
 extends Node
+
+const Gifts := preload("res://scripts/gifts.gd")
 ## Правила развития героя: характеристики, расы, классы, умения, ресурсы (мана / ярость / энергия),
 ## штраф за чужую экипировку. Хост считает по этим формулам; клиент — только показывает.
 
@@ -62,7 +64,7 @@ const CLASSES := {
 #   multi  — веер снарядов: count, spread (радианы между снарядами), range, mult
 #   heal   — лечение: target self | lowest (самый раненый рядом) | allies (все рядом), base, spi (×Дух), radius
 #   buff   — усиление: buff (имя), dur, allies (радиус; 0 — только себе)
-#   blink  — перенос вперёд (двигает клиент)
+#   blink  — перенос вперёд
 # icon — клетка в листе Shikashi (ряд 3 — «особые приёмы»), cost — расход ресурса класса.
 const SKILLS := {
 	# воин
@@ -172,7 +174,7 @@ func fits(p: Dictionary, it) -> bool:
 	if b.get("unique", false):
 		return true
 	if b.slot == "weapon":
-		return it.base in class_of(p).weapons
+		return it.base in class_of(p).weapons or Gifts.has_flag(p, "any_weapon")
 	var kind := str(b.get("kind", ""))
 	return kind == "" or kind in class_of(p).armor
 
@@ -214,40 +216,54 @@ func stat(p: Dictionary, s: String) -> int:
 	return BASE_STAT + int(p.get("stats", {}).get(s, 0)) + int(race_of(p).stats.get(s, 0)) + int(class_of(p).stats.get(s, 0))
 
 
-func max_hp(p: Dictionary) -> int:
-	return int((80 + stat(p, "vit") * 6 + int(p.get("level", 1)) * 4) * float(class_of(p).hp_mult))
+## Максимум здоровья с активными модификаторами хоста.
+func max_hp(p: Dictionary, gift_factor: float = -1.0) -> int:
+	return int((80 + stat(p, "vit") * 6 + int(p.get("level", 1)) * 4) * float(class_of(p).hp_mult) * (Gifts.factor(p, "hp") if gift_factor < 0.0 else gift_factor))
 
 
 func damage(p: Dictionary) -> float:
+	return base_damage(p) * Gifts.factor(p, "dmg")
+
+
+## Урон до применения даров.
+func base_damage(p: Dictionary) -> float:
 	return (4.0 + _gear_sum(p, "dmg") + stat(p, "str") * 0.6) * float(race_of(p).get("dmg_mult", 1.0))
 
 
 func crit_chance(p: Dictionary) -> float:
+	return clampf(base_crit_chance(p) + Gifts.mod(p, "crit"), 0.0, Gifts.CAPS.crit)
+
+
+## Шанс крита до даров и потолка.
+func base_crit_chance(p: Dictionary) -> float:
 	return stat(p, "agi") * 0.006 + float(race_of(p).get("crit", 0.0))
 
 
-func attack_speed(p: Dictionary) -> float:
-	return 1.0 + stat(p, "agi") * 0.012          # делитель перезарядки атаки
+## Делитель перезарядки атаки.
+func attack_speed(p: Dictionary, bonus: float = INF) -> float:
+	return clampf(1.0 + stat(p, "agi") * 0.012 + (Gifts.mod(p, "aspd") if bonus == INF else bonus), 0.1, 1.0 + Gifts.CAPS.aspd)
 
 
 func armor(p: Dictionary) -> int:
-	return int(_gear_sum(p, "armor")) + int(race_of(p).get("armor", 0))
+	if Gifts.has_flag(p, "no_armor"):
+		return 0
+	return int((_gear_sum(p, "armor") + int(race_of(p).get("armor", 0))) * Gifts.factor(p, "armor"))
 
 
 func cd_mult(p: Dictionary) -> float:
-	return 1.0 / (1.0 + stat(p, "spi") * 0.02)
+	return maxf(Gifts.CAPS.cd_mult_min, (1.0 + Gifts.mod(p, "cd")) / (1.0 + stat(p, "spi") * 0.02))
 
 
 func heal_power(p: Dictionary) -> float:
-	return 1.0 + stat(p, "spi") * 0.04
+	return (1.0 + stat(p, "spi") * 0.04) * Gifts.factor(p, "heal")
 
 
 func speed_mult(p: Dictionary) -> float:
-	return float(race_of(p).get("speed_mult", 1.0))
+	return minf(1.0 + Gifts.CAPS.speed, float(race_of(p).get("speed_mult", 1.0)) * Gifts.factor(p, "speed"))
 
 
 func stamina_regen(p: Dictionary) -> float:
-	return 1.0 + stat(p, "vit") * 0.03
+	return (1.0 + stat(p, "vit") * 0.03) * Gifts.factor(p, "stam_regen")
 
 
 # ---------- ресурс класса ----------
@@ -256,24 +272,25 @@ func res_kind(p: Dictionary) -> String:
 	return class_of(p).res
 
 
-func res_max(p: Dictionary) -> int:
+## Максимум ресурса с активными модификаторами хоста.
+func res_max(p: Dictionary, mana_factor: float = -1.0) -> int:
 	if res_kind(p) == "mana":
-		return 40 + stat(p, "spi") * 6 + int(p.get("level", 1)) * 3
+		return int((40 + stat(p, "spi") * 6 + int(p.get("level", 1)) * 3) * (Gifts.factor(p, "mana") if mana_factor < 0.0 else mana_factor))
 	return 100
 
 
 ## Сколько ресурса восстанавливается в секунду (ярость не восстанавливается — она копится в бою).
-func res_regen(p: Dictionary) -> float:
+func res_regen(p: Dictionary, mana_factor: float = -1.0) -> float:
 	match res_kind(p):
 		"mana":
-			return (1.5 + stat(p, "spi") * 0.12) * (0.5 if heavy_caster(p) else 1.0)
+			return (1.5 + stat(p, "spi") * 0.12) * (0.5 if heavy_caster(p) else 1.0) * (Gifts.factor(p, "mana_regen") if mana_factor < 0.0 else mana_factor)
 		"energy":
 			return 12.0 + stat(p, "agi") * 0.1
 	return 0.0
 
 
 func skill_cost(p: Dictionary, id: String) -> int:
-	return int(ceil(float(SKILLS[id].get("cost", 0)) * (1.3 if heavy_caster(p) else 1.0)))
+	return int(ceil(float(SKILLS[id].get("cost", 0)) * (1.3 if heavy_caster(p) else 1.0) * (Gifts.factor(p, "mana_cost") if res_kind(p) == "mana" else 1.0)))
 
 
 func skill_unlocked(p: Dictionary, id: String) -> bool:

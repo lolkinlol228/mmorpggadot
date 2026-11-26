@@ -2,6 +2,8 @@ extends Node
 ## База предметов, редкости, враги и броски лута.
 ## Все шансы собраны здесь — крути их, чтобы настроить "радость от дропа".
 
+const Gifts := preload("res://scripts/gifts.gd")
+
 const MAX_INV := 24
 const MAX_BANK := 48
 # Доска заказов: убей N врагов вида kind — получи награду (в медяках). Можно брать снова.
@@ -188,11 +190,20 @@ func roll_rarity(weights: Array) -> int:
 	return 0
 
 
-func roll_drop(boss: bool) -> Dictionary:
+func roll_drop(boss: bool, mods: Dictionary = {}) -> Dictionary:
 	var shiny := randf() < SHINY_CHANCE
 	if boss and randf() < BOSS_UNIQUE_CHANCE:
 		return make(UNIQUE_BASES.pick_random(), 5, "", shiny)
-	var rarity := roll_rarity(BOSS_WEIGHTS if boss else MOB_WEIGHTS)
+	var weights: Array = (BOSS_WEIGHTS if boss else MOB_WEIGHTS).duplicate()
+	for i in weights.size():
+		var bonus := float(mods.get("rare_find", 0.0)) if i >= 2 else 0.0
+		var weight := float(weights[i]) * maxf(0.0, 1.0 + bonus)
+		if i >= 4:
+			weight *= 1.0 + float(mods.get("mega_rare", 0.0))
+		if i == 5:
+			weight *= 1.0 + float(mods.get("mythic_find", 0.0))
+		weights[i] = roundi(weight * 100.0)
+	var rarity := roll_rarity(weights)
 	return make(COMMON_BASES.pick_random(), rarity, "", shiny)
 
 
@@ -303,3 +314,18 @@ func total_armor(equip: Dictionary) -> int:
 		if it is Dictionary:
 			s += int(it.armor)
 	return s
+
+
+## Вместимость сумки и хранилища с учётом даров.
+func bag_capacity(p: Dictionary) -> int:
+	return MAX_INV + int(Gifts.mod(p, "bag"))
+
+
+func bank_capacity(p: Dictionary) -> int:
+	return MAX_BANK + int(Gifts.mod(p, "bank"))
+
+
+## Цена сделки для героя. Лавка продаёт по тройной базовой цене.
+func shop_price(p: Dictionary, it: Dictionary, buying: bool) -> int:
+	var adjusted := value(it) * (3.0 if buying else 1.0) * Gifts.factor(p, "buy_price" if buying else "sell_price")
+	return maxi(1, roundi(adjusted))

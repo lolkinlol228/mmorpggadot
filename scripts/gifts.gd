@@ -116,3 +116,35 @@ static func tooltip(id: String) -> String:
 	if g.is_empty():
 		return ""
 	return "%s — %s\n%s" % [g.name, RARITY_NAMES.get(str(g.rarity), ""), g.desc]
+
+
+const COMBAT_KEYS := ["hp", "armor", "dmg", "crit", "aspd", "speed", "cd", "heal", "mana", "mana_regen", "stam_regen", "hp_regen"]
+
+## Вклад одного активного дара.
+static func contribution(gift: Dictionary, key: String) -> float:
+	var mods: Dictionary = gift.get("mods", {})
+	var all := float(mods.get("all", 0.0)) if key in COMBAT_KEYS else 0.0
+	return float(mods.get(key, 0.0)) + (-all if key == "cd" else all)
+
+
+## Сумма пассивных добавок, в том числе для будущих систем ремёсел.
+static func mod(p: Dictionary, key: String) -> float:
+	var total := 0.0
+	for id in p.get("gifts", []):
+		var gift := get_gift(id)
+		if not gift.has("when"):
+			total += contribution(gift, key)
+	return total
+
+
+## Есть ли у героя особая механика.
+static func has_flag(p: Dictionary, flag: String) -> bool:
+	for id in p.get("gifts", []):
+		if get_gift(id).get("flag", "") == flag:
+			return true
+	return false
+
+
+## Множитель с потолком положительной добавки.
+static func factor(p: Dictionary, key: String) -> float:
+	return maxf(0.0, 1.0 + minf(mod(p, key), float(CAPS.get(key, INF))))

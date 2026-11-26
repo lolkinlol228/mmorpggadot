@@ -55,7 +55,7 @@ func store_char(data: Dictionary) -> void:
 ## Проверка данных персонажа, пришедших по сети или из файла.
 func sanitize_char(d) -> Dictionary:
 	var out := {"name": "Игрок", "coins": 0, "inv": [], "equip": {}, "look": {}, "bank": [], "bounties": {},
-		"level": 1, "xp": 0, "points": 0, "stats": {}, "cls": "warrior", "gifts": []}
+		"level": 1, "xp": 0, "points": 0, "stats": {}, "cls": "warrior", "gifts": [], "gift_state": {"fate_blade": 0}}
 	if not (d is Dictionary):
 		return out
 	var n := str(d.get("name", "")).strip_edges().left(16)
@@ -63,6 +63,9 @@ func sanitize_char(d) -> Dictionary:
 	out.coins = clampi(int(d.get("coins", d.get("gold", 0))), 0, 999999999)   # старые сейвы: gold -> медяки
 	out.look = preload("res://scripts/char_baker.gd").sanitize_look(d.get("look", {}))
 	out.cls = str(d.get("cls", "warrior")) if Rules.CLASSES.has(str(d.get("cls", ""))) else "warrior"
+	var state = d.get("gift_state", {})
+	if state is Dictionary and (state.get("fate_blade") is int or state.get("fate_blade") is float):
+		out.gift_state.fate_blade = clampi(int(state.fate_blade), 0, 2500)
 	out.gifts = preload("res://scripts/gifts.gd").sanitize(d.get("gifts", []))
 	out.level = clampi(int(d.get("level", 1)), 1, 99)
 	out.xp = clampi(int(d.get("xp", 0)), 0, 99999999)
@@ -75,13 +78,13 @@ func sanitize_char(d) -> Dictionary:
 	if inv is Array:
 		for raw in inv:
 			var item := Items.normalize(raw)
-			if not item.is_empty() and item.base != "coins" and out.inv.size() < Items.MAX_INV:
+			if not item.is_empty() and item.base != "coins" and out.inv.size() < Items.bag_capacity(out):
 				out.inv.append(item)
 	var bank = d.get("bank", [])
 	if bank is Array:
 		for raw in bank:
 			var item := Items.normalize(raw)
-			if not item.is_empty() and item.base != "coins" and out.bank.size() < Items.MAX_BANK:
+			if not item.is_empty() and item.base != "coins" and out.bank.size() < Items.bank_capacity(out):
 				out.bank.append(item)
 	var bq = d.get("bounties", {})
 	if bq is Dictionary:
