@@ -198,7 +198,7 @@ func classes_for(base: String) -> String:
 		return ""
 	var names := PackedStringArray()
 	for c in CLASSES.values():
-		if (b.slot == "weapon" and base in c.weapons) or (kind != "" and kind in c.armor):
+		if (b.slot == "weapon" and Items.art_base(base) in c.weapons) or (kind != "" and kind in c.armor):
 			names.append(c.name)
 	return ", ".join(names)
 
@@ -211,7 +211,7 @@ func fits(p: Dictionary, it) -> bool:
 	if b.get("unique", false):
 		return true
 	if b.slot == "weapon":
-		return it.base in class_of(p).weapons or Gifts.has_flag(p, "any_weapon")
+		return Items.art_base(it.base) in class_of(p).weapons or Gifts.has_flag(p, "any_weapon")
 	var kind := str(b.get("kind", ""))
 	return kind == "" or kind in class_of(p).armor
 

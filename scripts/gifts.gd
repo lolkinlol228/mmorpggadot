@@ -156,4 +156,9 @@ static func ids(p: Dictionary) -> Array:
 	for id in p.get("temp_gifts", {}):
 		if id not in result and exists(id):
 			result.append(id)
+	var w = p.get("equip", {}).get("weapon")                      # надетая реликвия даёт свои дары
+	if w is Dictionary and Items.BASES.has(w.base):
+		for id in Items.BASES[w.base].get("grants", []):
+			if id not in result and exists(id):
+				result.append(id)
 	return result

@@ -39,8 +39,9 @@ func handle(pid: int, op: String, arg: String) -> void:
 			message = use_spot(pid, spots[i])
 	elif op == "field":
 		message = field(pid)
-	elif op in ["make", "repair", "salvage", "transmute"] and near_workshop(p):
+	elif op in ["make", "repair", "salvage", "transmute", "relic"] and near_workshop(p):
 		match op:
+			"relic": message = preload("res://scripts/relics.gd").craft(host, pid, arg)
 			"make": message = craft(pid, arg)
 			"repair":
 				if p.coins >= 12 and float(p.tools.wear) > 0.0:

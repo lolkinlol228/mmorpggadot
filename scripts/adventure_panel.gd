@@ -5,6 +5,7 @@ const Kit := preload("res://scripts/ui_kit.gd")
 const Sites := preload("res://scripts/adventure_sites.gd")
 const Gifts := preload("res://scripts/gifts.gd")
 const Professions := preload("res://scripts/host_professions.gd")
+const Relics := preload("res://scripts/relics.gd")
 
 var game
 var panel: PanelContainer
@@ -117,6 +118,8 @@ func _workshop_page(p: Dictionary) -> void:
 			if top >= need or rich >= need:
 				var mat: String = FINE[recipe[1]] if top >= need else "rich_" + str(recipe[1])
 				add_action("   ↳ из: %s (%d)" % [Professions.NAMES[mat], maxi(top, rich)], "make", base + ":fine")
+	_relic_section(p, "Компоненты (из трофеев)", Relics.COMPONENTS)
+	_relic_section(p, "Реликвии", Relics.RELICS)
 	var gear: Array = []
 	for item in p.inv:
 		if Items.slot_of(item) in Items.SLOTS:
@@ -135,6 +138,28 @@ func _workshop_page(p: Dictionary) -> void:
 			if Professions.NAMES.has("rich_" + str(key)):
 				add_action("5 × %s → %s" % [Professions.NAMES[key], Professions.NAMES["rich_" + str(key)]], "transmute", key,
 					int(stock[key]) >= 5)
+
+
+## Цепочка реликвий: по строке на рецепт — название, есть/нужно; кнопка активна, когда всего хватает.
+## Компонент показывается, только если у героя есть хоть один нужный трофей, — чтобы не пугать списком.
+func _relic_section(p: Dictionary, title: String, table: Dictionary) -> void:
+	var shown := false
+	for key in table:
+		var started := table == Relics.RELICS
+		for base in table[key].items:
+			if Relics.count(p.inv, base) > 0:
+				started = true
+		if not started:
+			continue
+		if not shown:
+			_header(title)
+			shown = true
+		var b: Dictionary = Items.BASES[key]
+		add_action("%s%s" % ["★ " if b.get("relic", false) else "", b.name], "relic", key, Relics.can_make(p, key))
+		var need := Kit.label("   " + Relics.need_text(p, key, Professions.NAMES), 9, Kit.DIM)
+		need.autowrap_mode = TextServer.AUTOWRAP_WORD
+		need.custom_minimum_size = Vector2(268, 0)
+		rows.add_child(need)
 
 
 ## Иконка материала с числом; название — во всплывающей подсказке. Редкие материалы подсвечены.

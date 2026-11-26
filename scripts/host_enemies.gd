@@ -95,5 +95,7 @@ func _kill(eid: int, killer: int) -> void:
 		var item_ctx := {"enemy": e, "item": Items.roll_drop(boss, drop_mods, shift)}
 		host.gifts.fire(killer, "loot", item_ctx)
 		host.drop(item_ctx.item, e.pos + Vector2(randf_range(-36, 36), randf_range(-36, 36)))
+	for trophy in preload("res://scripts/relics.gd").roll_trophies(e, loot_mult):   # трофеи для реликвий
+		host.drop(trophy, e.pos + Vector2(randf_range(-20, 20), randf_range(-14, 14)))
 	if boss:
 		host._all("c_announce", ["Голем повержен! Лут лежит на земле.", Color(1, 0.8, 0.4)])

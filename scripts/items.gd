@@ -16,7 +16,7 @@ const BOUNTIES := [
 const SHOP_STOCK := ["potion", "sword", "axe", "dagger", "hammer", "staff", "wand", "bow", "helm", "hood", "armor",
 	"jerkin", "robe", "boots"]
 const SLOTS := ["weapon", "head", "body", "feet", "offhand"]
-const SLOT_NAMES := {"weapon": "Оружие", "head": "Голова", "body": "Тело", "feet": "Ноги", "offhand": "Щит", "use": "Расходник", "currency": "Монеты"}
+const SLOT_NAMES := {"weapon": "Оружие", "head": "Голова", "body": "Тело", "feet": "Ноги", "offhand": "Щит", "use": "Расходник", "currency": "Монеты", "trophy": "Трофей"}
 
 # "icon" — клетка в assets/icons/shikashi_icons.png (сетка 32×32).
 const BASES := {
@@ -41,6 +41,31 @@ const BASES := {
 	"dawn_crown": {"name": "Корона Рассвета", "slot": "head", "dmg": 5, "armor": 12, "unique": true, "icon": Vector2i(9, 3)},
 	"potion": {"name": "Зелье лечения", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(0, 9), "stack": 10, "heal": 45},
 	"coins": {"name": "Монеты", "slot": "currency", "dmg": 0, "armor": 0, "icon": Vector2i(10, 12)},
+	# трофеи — падают с врагов; из них в мастерской делают компоненты (relics.gd)
+	"slime_gel": {"name": "Сгусток слизи", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 18), "stack": 99},
+	"wolf_fang": {"name": "Клык вожака", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(9, 17), "stack": 99},
+	"golem_shard": {"name": "Осколок ядра голема", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 17), "stack": 99},
+	"echo_dust": {"name": "Прах эха", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 20), "stack": 99},
+	"elite_mark": {"name": "Метка чемпиона", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(4, 18), "stack": 99},
+	# компоненты — из трофеев; из компонентов — реликвии
+	"acid_essence": {"name": "Кислотная эссенция", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 9), "stack": 20, "component": true},
+	"pack_charm": {"name": "Оберег стаи", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(8, 11), "stack": 20, "component": true},
+	"golem_heart": {"name": "Сердце голема", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(15, 12), "stack": 20, "component": true},
+	"lantern_soul": {"name": "Душа фонаря", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(9, 10), "stack": 20, "component": true},
+	"champion_seal": {"name": "Печать чемпиона", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 20, "component": true},
+	# реликвии — именное оружие из компонентов; art — чей спрайт, grants — дары, которые оно даёт владельцу
+	"acid_blade": {"name": "Разъедающий клинок", "slot": "weapon", "dmg": 20, "armor": 0, "art": "sword", "relic": true,
+		"grants": ["poisoned_blade", "armor_breaker"], "glow": Color(0.5, 1.0, 0.35), "icon": Vector2i(1, 5)},
+	"moon_bow": {"name": "Лук Лунной стаи", "slot": "weapon", "dmg": 18, "armor": 0, "art": "bow", "relic": true,
+		"grants": ["frost_touch", "steady_aim"], "glow": Color(0.6, 0.8, 1.0), "icon": Vector2i(3, 6)},
+	"mountain_hammer": {"name": "Молот Каменной Горы", "slot": "weapon", "dmg": 24, "armor": 0, "art": "hammer", "relic": true,
+		"grants": ["knockback", "giant_slayer"], "glow": Color(1.0, 0.7, 0.35), "icon": Vector2i(11, 5)},
+	"soul_lantern": {"name": "Фонарь душ", "slot": "weapon", "dmg": 19, "armor": 0, "art": "staff", "relic": true,
+		"grants": ["mana_thief", "storm_caller"], "glow": Color(0.7, 0.55, 1.0), "icon": Vector2i(8, 6)},
+	"shadow_fang": {"name": "Клык тени", "slot": "weapon", "dmg": 16, "armor": 0, "art": "dagger", "relic": true,
+		"grants": ["first_strike", "bleeder"], "glow": Color(0.45, 0.9, 0.5), "icon": Vector2i(6, 5)},
+	"dawn_scepter": {"name": "Скипетр Рассвета", "slot": "weapon", "dmg": 15, "armor": 0, "art": "wand", "relic": true,
+		"grants": ["gentle_hands", "healing_aura"], "glow": Color(1.0, 0.9, 0.5), "icon": Vector2i(9, 6)},
 }
 
 # ---- деньги: всё хранится в медяках, показывается номиналами ----
@@ -49,7 +74,10 @@ const COIN_NAMES := ["Платиновый Осколок", "Золотой", "�
 const COIN_SHORT := ["пл.", "зол.", "сер.", "мед."]
 const COIN_SHEET := preload("res://assets/custom/coins.png")     # медь, серебро, золото, платина
 # цена предметов в медяках (до множителя редкости)
-const VALUE := {"shield": 14, "meal": 4, "scroll": 7, "book": 9,"sword": 12, "axe": 15, "dagger": 9, "staff": 14, "wand": 11, "bow": 13, "hammer": 15, "jerkin": 14,
+const VALUE := {"slime_gel": 2, "wolf_fang": 6, "golem_shard": 40, "echo_dust": 5, "elite_mark": 30,
+	"acid_essence": 60, "pack_charm": 120, "golem_heart": 300, "lantern_soul": 150, "champion_seal": 260,
+	"acid_blade": 2500, "moon_bow": 3000, "mountain_hammer": 4500, "soul_lantern": 3500, "shadow_fang": 3500, "dawn_scepter": 3800,
+	"shield": 14, "meal": 4, "scroll": 7, "book": 9,"sword": 12, "axe": 15, "dagger": 9, "staff": 14, "wand": 11, "bow": 13, "hammer": 15, "jerkin": 14,
 	"helm": 10, "hood": 6, "armor": 18, "robe": 12,
 	"boots": 6, "potion": 8, "abyss_blade": 6000, "dawn_crown": 6000}
 const RARITY_VALUE := [1, 3, 10, 40, 220, 1500]
@@ -168,7 +196,7 @@ func icon(it: Dictionary) -> AtlasTexture:
 			if s[i] > 0:
 				return coin_icon(i)
 		return coin_icon(3)
-	var row := WEAPON_ROWS.find(it.base)
+	var row := WEAPON_ROWS.find(art_base(it.base))
 	if row >= 0:
 		var key := "w%d_%d" % [row, int(it.rarity)]
 		if not _icon_cache.has(key):
@@ -251,6 +279,8 @@ func is_jackpot(it: Dictionary) -> bool:
 func color(it) -> Color:
 	if not (it is Dictionary) or it.is_empty():
 		return RARITY_COLORS[0]
+	if BASES.has(it.get("base", "")) and BASES[it.base].has("glow"):
+		return BASES[it.base].glow                      # у каждой реликвии свой цвет
 	return SHINY_COLOR if it.shiny or it.get("golden", false) else RARITY_COLORS[int(it.rarity)]
 
 
@@ -277,6 +307,17 @@ func tooltip(it: Dictionary) -> String:
 		lines.append("Клик в сумке — выпить")
 		lines.append("Цена у торговки: %s" % format_coins(value(it)))
 		return "\n".join(lines)
+	if b.slot == "trophy":
+		lines.append(("Компонент реликвии" if b.get("component", false) else "Трофей") + " · мастерская Горна")
+		lines.append("Нужен для: " + preload("res://scripts/relics.gd").used_in(it.base))
+		lines.append("Цена у торговки: %s" % format_coins(value(it)))
+		return "\n".join(lines)
+	if b.get("relic", false):
+		lines.append("Реликвия · %s" % BASES[art_base(it.base)].name)
+		var gifts := PackedStringArray()
+		for g in b.grants:
+			gifts.append(str(preload("res://scripts/gifts.gd").get_gift(g).get("name", g)))
+		lines.append("★ Дары реликвии: " + ", ".join(gifts))
 	lines.append("%s · %s%s" % [RARITY_NAMES[int(it.rarity)], SLOT_NAMES[b.slot],
 		(" · " + KIND_NAMES[b.kind]) if b.has("kind") else ""])
 	var who: String = Rules.classes_for(it.base)
@@ -300,9 +341,18 @@ func tooltip(it: Dictionary) -> String:
 	return "\n".join(lines)
 
 
+## Чей спрайт и стиль удара у предмета: реликвия выглядит и бьёт как своё базовое оружие.
+func art_base(base: String) -> String:
+	return str(BASES.get(base, {}).get("art", base))
+
+
+func is_relic(it) -> bool:
+	return it is Dictionary and not it.is_empty() and bool(BASES.get(it.base, {}).get("relic", false))
+
+
 func style_of(it) -> String:
 	if it is Dictionary and not it.is_empty():
-		return WEAPON_STYLE.get(it.base, "slash")
+		return WEAPON_STYLE.get(art_base(it.base), "slash")
 	return "slash"
 
 

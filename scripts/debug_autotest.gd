@@ -272,6 +272,29 @@ func _hero_steps() -> void:
 				int(game.host.players[game.my_id].hp), str(int(game.host.enemies[eid].get("stun_until", 0)) > Time.get_ticks_msec())])
 		if t > 21.0 and _once("shot_parry"):
 			_shot("12_parry")
+		if t > 21.2 and _once("relic_chain"):          # трофеи → компонент → реликвия → её дары у героя
+			var R = preload("res://scripts/relics.gd")
+			var hp2: Dictionary = game.host.players[game.my_id]
+			var gel := Items.make("slime_gel", 0, "", false)
+			gel.count = 20
+			game.host.eco.add_item(hp2, gel)
+			var ess := Items.make("acid_essence", 0, "", false)
+			game.host.eco.add_item(hp2, ess)
+			hp2.materials["herb"] = 2
+			hp2.materials["star_iron"] = 5
+			var m1: String = R.craft(game.host, game.my_id, "acid_essence")
+			R.craft(game.host, game.my_id, "acid_blade")
+			var blade_uid := ""
+			for it in hp2.inv:
+				if it.base == "acid_blade":
+					blade_uid = it.uid
+			hp2.equip["weapon"] = hp2.inv[game.host._find(hp2.inv, blade_uid)] if blade_uid != "" else hp2.equip.get("weapon")
+			game.host._after_equip(game.my_id)
+			print("[autotest] реликвия: %s; клинок %s; дары героя %s; стиль %s" % [m1, "есть" if blade_uid != "" else "НЕТ",
+				str(Rules.Gifts.ids(hp2)), Items.style_of(hp2.equip.get("weapon"))])
+		if t > 21.6 and _once("shot_relic"):
+			game.attack()
+			_shot("13_relic")
 	else:
 		if t > 16.5 and _once("basic"):
 			game.my_facing = Vector2.RIGHT

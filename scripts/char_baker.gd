@@ -47,9 +47,10 @@ static func _img(name: String) -> Image:
 static func _layer_source(layer: String, equip: Dictionary, look: Dictionary) -> String:
 	var slot: String = SLOT_FOR_LAYER.get(layer, "")
 	var it = equip.get(slot) if slot != "" else null
-	if it is Dictionary and meta.gear.has(it.base) and layer in meta.gear[it.base]:
-		var r := 5 if it.base in ["dawn_crown", "abyss_blade"] else int(it.rarity)
-		return "%s_%s_%s_r%d" % [look.sex, it.base, layer, r]
+	var art: String = str(Items.BASES.get(it.base, {}).get("art", it.base)) if it is Dictionary else ""
+	if it is Dictionary and meta.gear.has(art) and layer in meta.gear[art]:
+		var r := 5 if art in ["dawn_crown", "abyss_blade"] else int(it.rarity)
+		return "%s_%s_%s_r%d" % [look.sex, art, layer, r]
 	var head = equip.get("head")
 	var covered: bool = head is Dictionary and head.base in ["helm", "hood"]
 	match layer:
