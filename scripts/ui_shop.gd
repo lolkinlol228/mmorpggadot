@@ -9,6 +9,8 @@ var game
 var ui
 var mode := ""                 # "", "bank", "shop", "board", "talk"
 var bank_win: PanelContainer
+var bank_grid: GridContainer
+var buy_prices := {}
 var bank_slots: Array = []
 var shop_win: PanelContainer
 var board_win: PanelContainer
@@ -47,6 +49,7 @@ func open(kind: String, spot: Dictionary) -> void:
 			_refresh_bank()
 		"shop":
 			shop_win.show()
+			_refresh_prices()
 			ui.inv_panel.show()
 		"board":
 			board_win.show()
@@ -72,6 +75,8 @@ func refresh() -> void:
 		_refresh_bank()
 	elif mode == "board":
 		_refresh_board()
+	elif mode == "shop":
+		_refresh_prices()
 
 
 ## Клик по вещи в сумке, пока открыто хранилище/лавка. true — клик обработан здесь.
@@ -99,20 +104,29 @@ func _build_bank() -> void:
 	grid.add_theme_constant_override("h_separation", 0)
 	grid.add_theme_constant_override("v_separation", 0)
 	body.add_child(grid)
-	for i in Items.MAX_BANK:
-		var s = ItemSlot.new()
-		s.clicked.connect(_on_bank_slot.bind(i))
-		grid.add_child(s)
-		bank_slots.append(s)
+	bank_grid = grid
+	_fill_bank_slots(Items.MAX_BANK)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	body.add_child(row)
 	row.add_child(Kit.button("Сложить всё из сумки", func(): game.eco("deposit_all")))
 
 
+## Добавляет ячейки хранилища для увеличенной вместимости.
+func _fill_bank_slots(capacity: int) -> void:
+	while bank_slots.size() < capacity:
+		var s = ItemSlot.new()
+		s.clicked.connect(_on_bank_slot.bind(bank_slots.size()))
+		bank_grid.add_child(s)
+		bank_slots.append(s)
+
+
 func _refresh_bank() -> void:
 	var bank: Array = game.me.get("bank", [])
+	var capacity := maxi(bank.size(), Items.bank_capacity(game.me))
+	_fill_bank_slots(capacity)
 	for i in bank_slots.size():
+		bank_slots[i].visible = i < capacity
 		bank_slots[i].set_item(bank[i] if i < bank.size() else null)
 
 
@@ -148,9 +162,17 @@ func _build_shop() -> void:
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", -2)
 		v.add_child(Kit.label(Items.BASES[base].name, 9))
-		v.add_child(Kit.label(Items.format_coins(Items.value(it) * 3), 9, Kit.GOLD))
+		var price := Kit.label("", 9, Kit.GOLD)
+		buy_prices[base] = [it, price]
+		v.add_child(price)
 		cell.add_child(v)
 		grid.add_child(cell)
+
+
+## Показывает цену покупки для текущего героя.
+func _refresh_prices() -> void:
+	for entry in buy_prices.values():
+		entry[1].text = Items.format_coins(Items.shop_price(game.me, entry[0], true))
 
 
 # ---------- доска заказов ----------

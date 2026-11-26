@@ -29,7 +29,7 @@ func add_item(p: Dictionary, it: Dictionary) -> bool:
 				it.count = int(it.count) - move
 				if int(it.count) <= 0:
 					return true
-	if p.inv.size() >= Items.MAX_INV:
+	if p.inv.size() >= Items.bag_capacity(p):
 		return false
 	p.inv.append(it)
 	return true
@@ -76,7 +76,7 @@ func _bank(p: Dictionary, op: String, uid: String) -> String:
 	match op:
 		"deposit":
 			var i: int = host._find(p.inv, uid)
-			if i < 0 or p.bank.size() >= Items.MAX_BANK:
+			if i < 0 or p.bank.size() >= Items.bank_capacity(p):
 				return "Хранилище полно." if i >= 0 else ""
 			p.bank.append(p.inv[i])
 			p.inv.remove_at(i)
@@ -91,7 +91,7 @@ func _bank(p: Dictionary, op: String, uid: String) -> String:
 		"deposit_all":
 			var moved := 0
 			for it in p.inv.duplicate():
-				if it.base == "potion" or p.bank.size() >= Items.MAX_BANK:
+				if it.base == "potion" or p.bank.size() >= Items.bank_capacity(p):
 					continue
 				p.bank.append(it)
 				p.inv.erase(it)
@@ -105,7 +105,7 @@ func _shop(p: Dictionary, op: String, arg: String) -> String:
 		var i: int = host._find(p.inv, arg)
 		if i < 0:
 			return ""
-		var price := Items.value(p.inv[i])
+		var price := Items.shop_price(p, p.inv[i], false)
 		var name := Items.display_name(p.inv[i])
 		p.inv.remove_at(i)
 		p.coins += price
@@ -113,7 +113,7 @@ func _shop(p: Dictionary, op: String, arg: String) -> String:
 	if arg not in Items.SHOP_STOCK:
 		return ""
 	var it := Items.make_potion(1) if arg == "potion" else Items.make(arg, 0, "Лавка Миры", false)
-	var cost := Items.value(it) * 3
+	var cost := Items.shop_price(p, it, true)
 	if int(p.coins) < cost:
 		return "Не хватает денег: нужно %s" % Items.format_coins(cost)
 	if not add_item(p, it):
@@ -129,14 +129,14 @@ func _use(p: Dictionary, uid: String) -> String:
 	var it: Dictionary = p.inv[i]
 	if it.base != "potion":
 		return ""
-	if int(p.hp) >= int(p.max_hp):
+	if Rules.Gifts.has_flag(p, "no_heal"):
+		return "Дар не позволяет пить зелья."
+	if int(p.hp) >= int(p.max_hp) and not Rules.Gifts.has_flag(p, "overheal_shield"):
 		return "Здоровье и так полное."
-	p.hp = mini(int(p.max_hp), int(p.hp) + int(Items.BASES.potion.heal))
+	host.skills._heal(host._sender(), int(Items.BASES.potion.heal))
 	it.count = int(it.count) - 1
 	if int(it.count) <= 0:
 		p.inv.remove_at(i)
-	var pid: int = host._sender()
-	host._all("c_hp", [pid, p.hp, p.max_hp, 0])
 	return ""
 
 

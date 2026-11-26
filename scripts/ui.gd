@@ -27,6 +27,7 @@ var invite_panel: PanelContainer
 var invite_label: Label
 var menu_panel: PanelContainer
 var invite_from := -1
+var inv_grid: GridContainer
 var shop                         # окна хранилища/лавки/доски/разговора
 var trading := false
 var charwin                      # окно героя (C)
@@ -84,7 +85,10 @@ func refresh() -> void:
 	shop.refresh()
 	for slot in equip_slots:
 		equip_slots[slot].set_item(me.equip.get(slot))
+	var capacity := maxi(me.inv.size(), Items.bag_capacity(me))
+	_fill_inv_slots(capacity)
 	for i in inv_slots.size():
+		inv_slots[i].visible = i < capacity
 		var it = me.inv[i] if i < me.inv.size() else null
 		inv_slots[i].set_item(it, it is Dictionary and my_offer.has(it.uid))
 
@@ -154,14 +158,20 @@ func _build_inventory() -> void:
 	grid.add_theme_constant_override("h_separation", 0)
 	grid.add_theme_constant_override("v_separation", 0)
 	body.add_child(grid)
-	for i in Items.MAX_INV:
-		var s = ItemSlot.new()
-		s.clicked.connect(_on_inv_pressed.bind(i))
-		grid.add_child(s)
-		inv_slots.append(s)
+	inv_grid = grid
+	_fill_inv_slots(Items.MAX_INV)
 	var hint := Kit.label("клик — надеть / выпить  ·  у хранилища — сдать  ·  у торговки — продать", 9, Kit.DIM)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.add_child(hint)
+
+
+## Добавляет ячейки сумки на героев с увеличенной вместимостью.
+func _fill_inv_slots(capacity: int) -> void:
+	while inv_slots.size() < capacity:
+		var s = ItemSlot.new()
+		s.clicked.connect(_on_inv_pressed.bind(inv_slots.size()))
+		inv_grid.add_child(s)
+		inv_slots.append(s)
 
 
 func toggle_inventory() -> void:

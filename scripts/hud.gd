@@ -11,6 +11,7 @@ const SkillBar := preload("res://scripts/skill_bar.gd")
 var game
 var ui
 var hp_fill: TextureRect
+var shield_fill: ColorRect
 var st_fill: ColorRect
 var face: TextureRect
 var face_tex := AtlasTexture.new()
@@ -82,6 +83,11 @@ func _build_portrait() -> void:
 	hp_fill.position = Vector2(2, 3)
 	hp_fill.size = Vector2(106, 5)
 	bar.add_child(hp_fill)
+	shield_fill = ColorRect.new()
+	shield_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shield_fill.position = Vector2(2, 2)
+	shield_fill.size = Vector2(0, 1)
+	bar.add_child(shield_fill)
 	var res_bg := ColorRect.new()                      # ресурс класса: мана / ярость / энергия
 	res_bg.color = Color(0.05, 0.05, 0.07, 0.9)
 	res_bg.custom_minimum_size = Vector2(110, 4)
@@ -271,6 +277,7 @@ func set_res(me: Dictionary) -> void:
 func refresh(me: Dictionary) -> void:
 	var ratio := clampf(float(me.hp) / float(me.max_hp), 0.0, 1.0)
 	hp_fill.size.x = 106.0 * ratio
+	shield_fill.size.x = 106.0 * clampf(float(me.get("shield", 0)) / float(me.max_hp), 0.0, 1.0)
 	hp_text.text = "%d / %d" % [me.hp, me.max_hp]
 	var split := Items.split_coins(int(me.coins))
 	for d in 4:

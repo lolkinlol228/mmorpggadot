@@ -146,18 +146,18 @@ func _move_local(delta: float) -> void:
 		dir.y -= 1
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
 		dir.y += 1
-	var sprint: bool = Input.is_physical_key_pressed(KEY_SHIFT) and dir != Vector2.ZERO and stamina > 1.0
+	var sprint: bool = Input.is_physical_key_pressed(KEY_SHIFT) and dir != Vector2.ZERO and (stamina > 1.0 or GiftMotion.sprint_cost(me) == 0.0)
 	if dash_left > 0.0:                                  # рывок: летим по направлению, ввод игнорируется
 		dash_left -= delta
-		my_pos = World.move(my_pos, dash_dir * SPEED * DASH_SPEED * delta)
+		my_pos = World.move(my_pos, dash_dir * SPEED * DASH_SPEED * Rules.Gifts.factor(me, "dash_dist") * delta)
 	elif dir != Vector2.ZERO:
-		my_pos = World.move(my_pos, dir.normalized() * SPEED * move_mult() * (SPRINT if sprint else 1.0) * delta)
+		my_pos = World.move(my_pos, dir.normalized() * SPEED * move_mult() * (SPRINT * Rules.Gifts.factor(me, "sprint_speed") if sprint else 1.0) * delta)
 		step_acc += delta * (1.5 if sprint else 1.0)
 		if step_acc > 0.3:
 			step_acc = 0.0
 			Sfx.play("step")
 	if sprint and dash_left <= 0.0:
-		stamina = maxf(0.0, stamina - 26.0 * delta)
+		stamina = maxf(0.0, stamina - GiftMotion.sprint_cost(me) * delta)
 		stamina_idle = 0.0
 		dust_acc += delta
 		if dust_acc > 0.12:
@@ -166,7 +166,7 @@ func _move_local(delta: float) -> void:
 	else:
 		stamina_idle += delta
 		if stamina_idle > 0.6:
-			stamina = minf(100.0, stamina + 24.0 * Rules.stamina_regen(me) * delta)
+			stamina = minf(100.0, stamina + 24.0 * GiftMotion.stamina_regen(me) * delta)
 	ui.hud.set_stamina(stamina / 100.0)
 	var aim := get_global_mouse_position() - my_pos
 	if aim.length() > 6.0:
@@ -230,9 +230,15 @@ func _to_host(method: StringName, args: Array = []) -> void:
 		callv("rpc_id", [1, method] + args)
 
 
+var dash_charges := preload("res://scripts/dash_charges.gd").new()
+const GiftMotion := preload("res://scripts/player_gift_motion.gd")
+
+
 func dash() -> void:
 	var free: bool = not me.is_empty() and ui.hud.skills.has_buff("pounce")     # кошачья прыть: рывки бесплатно
 	if me.is_empty() or int(me.hp) <= 0 or dash_left > 0.0 or (stamina < DASH_COST and not free):
+		return
+	if not dash_charges.consume(me, free):
 		return
 	var dir := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): dir.x -= 1
@@ -246,7 +252,7 @@ func dash() -> void:
 	stamina_idle = 0.0
 	fx.dust(my_pos, 10)
 	Sfx.play("swing", -2.0, 0.7)
-	_to_host("h_dash")
+	_to_host("h_dash", [dash_dir])
 
 
 func attack() -> void:
@@ -254,7 +260,7 @@ func attack() -> void:
 		return
 	var now := Time.get_ticks_msec()
 	var style: String = Items.style_of(me.equip.get("weapon"))
-	if now - last_attack < int(float(ATTACK_CD[style]) / Rules.attack_speed(me)):
+	if now - last_attack < int(float(ATTACK_CD[style]) / GiftMotion.attack_speed(me, ui.hud)):
 		return
 	last_attack = now
 	_to_host("h_attack", [my_facing])
@@ -270,10 +276,11 @@ func parry() -> void:
 		ui.add_feed("Парировать можно только оружием ближнего боя.", GREY)
 		return
 	var now := Time.get_ticks_msec()
-	if now < parry_ready_at or stamina < Rules.PARRY.cost:
+	var cost := Rules.PARRY.cost * Rules.Gifts.factor(me, "parry_cost")
+	if now < parry_ready_at or stamina < cost:
 		return
 	parry_ready_at = now + int(Rules.PARRY.cd * 1000.0)
-	stamina -= Rules.PARRY.cost
+	stamina -= cost
 	stamina_idle = 0.0
 	_to_host("h_parry")
 
@@ -306,10 +313,10 @@ func c_parried(pid: int, enemy_pos: Vector2) -> void:
 func move_mult() -> float:
 	if me.is_empty():
 		return 1.0
-	return Rules.speed_mult(me) * (1.4 if ui.hud.skills.has_buff("pounce") else 1.0)
+	return GiftMotion.speed(me, ui.hud)
 
 
-## Умение с панели. Лунный шаг двигает самого игрока (позицию ведёт клиент), остальное решает хост.
+## Запрос умения с панели.
 func use_skill(id: String) -> void:
 	if me.is_empty() or int(me.hp) <= 0:
 		return
@@ -325,17 +332,12 @@ func use_skill(id: String) -> void:
 		return
 	if bar.cd_left(id) > 0.0:
 		return
-	if float(me.get("res", 0)) < Rules.skill_cost(me, id):
+	var hp_cost := Rules.res_kind(me) == "mana" and Rules.Gifts.has_flag(me, "hp_cost")
+	var available := int(me.hp) - 1 if hp_cost else int(me.get("res", 0))
+	if available < Rules.skill_cost(me, id):
 		ui.add_feed("Не хватает: %s." % Rules.RES_NAMES[Rules.res_kind(me)].to_lower(), GREY)
 		return
 	bar.start_cd(id)
-	if id == "blink":
-		fx.burst(my_pos + Vector2(0, -12), Color(0.6, 0.75, 1.0), 14, false)
-		for i in 18:
-			my_pos = World.move(my_pos, my_facing * 5.0)
-		fx.burst(my_pos + Vector2(0, -12), Color(0.8, 0.9, 1.0), 14, false)
-		if not is_host:
-			rpc_id(1, "h_pos", my_pos, my_facing)
 	_to_host("h_skill", [id, my_facing])
 
 
@@ -415,9 +417,9 @@ func _auto_pickup() -> void:
 		return
 	var now := Time.get_ticks_msec()
 	for lid in loot_views:
-		if loot_views[lid].position.distance_to(my_pos) > PICKUP_RADIUS:
+		if loot_views[lid].position.distance_to(my_pos) > PICKUP_RADIUS * Rules.Gifts.factor(me, "pickup"):
 			continue
-		if me.inv.size() >= Items.MAX_INV and loot_views[lid].item.base != "coins":
+		if me.inv.size() >= Items.bag_capacity(me) and not Items.is_stack(loot_views[lid].item) and loot_views[lid].item.base != "coins":
 			if now - full_hint_at > 4000:
 				full_hint_at = now
 				ui.add_feed("Сумка полна! Выкинуть пока нельзя — надень лучшее или обменяй.", GREY)
@@ -479,8 +481,8 @@ func h_trade_cancel() -> void:
 	if host: host.trade_cancel()
 
 @rpc("any_peer", "call_remote", "reliable")
-func h_dash() -> void:
-	if host: host.dash()
+func h_dash(dir: Vector2) -> void:
+	if host: host.dash(dir)
 
 @rpc("authority", "call_remote", "reliable")
 func c_dash(pid: int) -> void:
@@ -576,7 +578,7 @@ func c_self(priv: Dictionary) -> void:
 	Save.store_char({"name": Net.player_name, "coins": me.coins, "inv": me.inv, "equip": me.equip,
 		"look": me.get("look", {}), "bank": me.get("bank", []), "bounties": me.get("bounties", {}),
 		"level": me.get("level", 1), "xp": me.get("xp", 0), "points": me.get("points", 0), "stats": me.get("stats", {}),
-		"cls": me.get("cls", "warrior"), "gifts": me.get("gifts", [])})
+		"cls": me.get("cls", "warrior"), "gifts": me.get("gifts", []), "gift_state": me.get("gift_state", {})})
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -674,7 +676,10 @@ func c_hp(pid: int, hp: int, max_hp: int, dealt: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func c_teleport(pos: Vector2) -> void:
+func c_teleport(pos: Vector2, blink: bool) -> void:
+	if blink:
+		fx.burst(my_pos + Vector2(0, -12), Color(0.6, 0.75, 1.0), 14, false)
+		fx.burst(pos + Vector2(0, -12), Color(0.8, 0.9, 1.0), 14, false)
 	my_pos = pos
 
 
@@ -770,3 +775,22 @@ func float_text(pos: Vector2, text: String, color: Color) -> void:
 	tw.tween_property(l, "position:y", pos.y - 20, 0.7)
 	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.7)
 	tw.tween_callback(l.queue_free)
+
+
+## Хост обновил запас щита владельца.
+@rpc("authority", "call_remote", "reliable")
+func c_shield(amount: int) -> void:
+	me.shield = amount
+	ui.refresh_hp()
+
+
+## Хост обновил параметры движения владельца.
+@rpc("authority", "call_remote", "reliable")
+func c_gift_motion(values: Dictionary) -> void:
+	me.gift_motion = values
+
+
+## Дар сбросил перезарядку удачного парирования.
+@rpc("authority", "call_remote", "reliable")
+func c_parry_reset() -> void:
+	parry_ready_at = 0
