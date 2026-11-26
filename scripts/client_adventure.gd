@@ -1,6 +1,8 @@
 extends RefCounted
 ## Взаимодействия, приключения и ремёсла на клиенте.
 
+const PlayerView := preload("res://scripts/player_view.gd")
+
 var game
 
 
@@ -33,10 +35,10 @@ func adventure(op: String, arg: String = "") -> void:
 func c_adventure_control(stun: bool, seconds: float) -> void:
 	var until := Time.get_ticks_msec() + roundi(seconds * 1000.0)
 	if stun:
-		game.stun_local_until = until
+		game.client_input.stun_local_until = until
 		game.dash_left = 0.0
 	else:
-		game.slow_local_until = until
+		game.client_input.slow_local_until = until
 
 
 func c_adventure_mark(id: String, pos: Vector2, show_mark: bool) -> void:
@@ -54,7 +56,7 @@ func c_adventure_decoy(pid: int, pos: Vector2, duration: float) -> void:
 	var source = game.player_views.get(pid)
 	if source == null:
 		return
-	var image = game.PlayerView.new()
+	var image = PlayerView.new()
 	image.equip = source.equip
 	image.look = source.look
 	image.pname = "Копия"

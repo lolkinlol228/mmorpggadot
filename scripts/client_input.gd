@@ -1,11 +1,25 @@
 extends RefCounted
 ## Ввод, движение и локальные проверки действий игрока.
 
+const GiftMotion := preload("res://scripts/player_gift_motion.gd")
+
 var game
+const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot": 500}
+const DASH_COST := 30.0
+const SPRINT := 1.55
+var slow_local_until := 0
+var stun_local_until := 0
+var dash_charges := preload("res://scripts/dash_charges.gd").new()
+var parry_ready_at := 0
+var dust_acc := 0.0
+var stamina_idle := 0.0
+var step_acc := 0.0
+var last_attack := 0
+var send_acc := 0.0
 
 
 func _move_local(delta: float) -> void:
-	if game.me.is_empty() or int(game.me.hp) <= 0 or game.ui.is_typing() or Time.get_ticks_msec() < game.stun_local_until:
+	if game.me.is_empty() or int(game.me.hp) <= 0 or game.ui.is_typing() or Time.get_ticks_msec() < stun_local_until:
 		return
 	var dir := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -16,27 +30,27 @@ func _move_local(delta: float) -> void:
 		dir.y -= 1
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
 		dir.y += 1
-	var sprint: bool = Input.is_physical_key_pressed(KEY_SHIFT) and dir != Vector2.ZERO and (game.stamina > 1.0 or game.GiftMotion.sprint_cost(game.me) == 0.0)
+	var sprint: bool = Input.is_physical_key_pressed(KEY_SHIFT) and dir != Vector2.ZERO and (game.stamina > 1.0 or GiftMotion.sprint_cost(game.me) == 0.0)
 	if game.dash_left > 0.0:                                  # рывок: летим по направлению, ввод игнорируется
 		game.dash_left -= delta
 		game.my_pos = World.move(game.my_pos, game.dash_dir * game.SPEED * game.DASH_SPEED * Rules.Gifts.factor(game.me, "dash_dist") * delta)
 	elif dir != Vector2.ZERO:
-		game.my_pos = World.move(game.my_pos, dir.normalized() * game.SPEED * game.move_mult() * (game.SPRINT * Rules.Gifts.factor(game.me, "sprint_speed") if sprint else 1.0) * delta)
-		game.step_acc += delta * (1.5 if sprint else 1.0)
-		if game.step_acc > 0.3:
-			game.step_acc = 0.0
+		game.my_pos = World.move(game.my_pos, dir.normalized() * game.SPEED * move_mult() * (SPRINT * Rules.Gifts.factor(game.me, "sprint_speed") if sprint else 1.0) * delta)
+		step_acc += delta * (1.5 if sprint else 1.0)
+		if step_acc > 0.3:
+			step_acc = 0.0
 			Sfx.play("step")
 	if sprint and game.dash_left <= 0.0:
-		game.stamina = maxf(0.0, game.stamina - game.GiftMotion.sprint_cost(game.me) * delta)
-		game.stamina_idle = 0.0
-		game.dust_acc += delta
-		if game.dust_acc > 0.12:
-			game.dust_acc = 0.0
+		game.stamina = maxf(0.0, game.stamina - GiftMotion.sprint_cost(game.me) * delta)
+		stamina_idle = 0.0
+		dust_acc += delta
+		if dust_acc > 0.12:
+			dust_acc = 0.0
 			game.fx.dust(game.my_pos)
 	else:
-		game.stamina_idle += delta
-		if game.stamina_idle > 0.6:
-			game.stamina = minf(100.0, game.stamina + 24.0 * game.GiftMotion.stamina_regen(game.me) * delta)
+		stamina_idle += delta
+		if stamina_idle > 0.6:
+			game.stamina = minf(100.0, game.stamina + 24.0 * GiftMotion.stamina_regen(game.me) * delta)
 	game.ui.hud.set_stamina(game.stamina / 100.0)
 	var aim = game.get_global_mouse_position() - game.my_pos
 	if aim.length() > 6.0:
@@ -46,9 +60,9 @@ func _move_local(delta: float) -> void:
 		view.position = game.my_pos
 		view.target = game.my_pos
 		view.facing = game.my_facing
-	game.send_acc += delta
-	if game.send_acc >= game.NET_TICK and not game.is_host:
-		game.send_acc = 0.0
+	send_acc += delta
+	if send_acc >= game.NET_TICK and not game.is_host:
+		send_acc = 0.0
 		game.rpc_id(1, "h_pos", game.my_pos, game.my_facing)
 
 
@@ -97,9 +111,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func dash() -> void:
 	var free: bool = not game.me.is_empty() and game.ui.hud.skills.has_buff("pounce")     # кошачья прыть: рывки бесплатно
-	if game.me.is_empty() or int(game.me.hp) <= 0 or game.dash_left > 0.0 or (game.stamina < game.DASH_COST and not free):
+	if game.me.is_empty() or int(game.me.hp) <= 0 or game.dash_left > 0.0 or (game.stamina < DASH_COST and not free):
 		return
-	if not game.dash_charges.consume(game.me, free):
+	if not dash_charges.consume(game.me, free):
 		return
 	var dir := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): dir.x -= 1
@@ -109,8 +123,8 @@ func dash() -> void:
 	game.dash_dir = dir.normalized() if dir != Vector2.ZERO else game.my_facing
 	game.dash_left = 0.0 if Rules.Gifts.has_flag(game.me, "blink_dash") else 0.2
 	if not free:
-		game.stamina -= game.DASH_COST
-	game.stamina_idle = 0.0
+		game.stamina -= DASH_COST
+	stamina_idle = 0.0
 	game.fx.dust(game.my_pos, 10)
 	Sfx.play("swing", -2.0, 0.7)
 	game._to_host("h_dash", [game.dash_dir])
@@ -121,9 +135,9 @@ func attack() -> void:
 		return
 	var now := Time.get_ticks_msec()
 	var style: String = "stab" if not game.me.equip.has("weapon") and Rules.Gifts.has_flag(game.me, "fists") else Items.style_of(game.me.equip.get("weapon"))
-	if now - game.last_attack < int(float(game.ATTACK_CD[style]) / game.GiftMotion.attack_speed(game.me, game.ui.hud)):
+	if now - last_attack < int(float(ATTACK_CD[style]) / GiftMotion.attack_speed(game.me, game.ui.hud)):
 		return
-	game.last_attack = now
+	last_attack = now
 	game._to_host("h_attack", [game.my_facing])
 
 
@@ -135,18 +149,18 @@ func parry() -> void:
 		return
 	var now := Time.get_ticks_msec()
 	var cost = Rules.PARRY.cost * Rules.Gifts.factor(game.me, "parry_cost")
-	if now < game.parry_ready_at or game.stamina < cost:
+	if now < parry_ready_at or game.stamina < cost:
 		return
-	game.parry_ready_at = now + int(Rules.PARRY.cd * 1000.0)
+	parry_ready_at = now + int(Rules.PARRY.cd * 1000.0)
 	game.stamina -= cost
-	game.stamina_idle = 0.0
+	stamina_idle = 0.0
 	game._to_host("h_parry")
 
 
 func move_mult() -> float:
 	if game.me.is_empty():
 		return 1.0
-	return game.GiftMotion.speed(game.me, game.ui.hud) * game.GiftMotion.terrain(game.me, game.my_pos, Time.get_ticks_msec() < game.slow_local_until)
+	return GiftMotion.speed(game.me, game.ui.hud) * GiftMotion.terrain(game.me, game.my_pos, Time.get_ticks_msec() < slow_local_until)
 
 
 func use_skill(id: String) -> void:

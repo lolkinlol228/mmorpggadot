@@ -1,6 +1,8 @@
 extends RefCounted
 ## Состояние мира, сообщения и сохранение подтверждённого героя.
 
+const PlayerView := preload("res://scripts/player_view.gd")
+
 var game
 
 
@@ -26,7 +28,7 @@ func c_init(ps: Array, es: Array, ls: Array, priv: Dictionary) -> void:
 	for e in es:
 		game.c_enemy_spawn(e)
 	for l in ls:
-		game._add_loot(l[0], l[1], l[2], false)
+		game.client_inventory._add_loot(l[0], l[1], l[2], false)
 	game.my_pos = priv.pos
 	game.c_self(priv)
 	print("[client] в мире: игроков %d, врагов %d" % [game.player_views.size(), game.enemy_views.size()])
@@ -36,7 +38,7 @@ func c_player_joined(pub: Dictionary) -> void:
 	var pid := int(pub.id)
 	if game.player_views.has(pid):
 		return
-	var v = game.PlayerView.new()
+	var v = PlayerView.new()
 	v.pid = pid
 	v.pname = pub.name
 	v.equip = pub.equip

@@ -1,6 +1,8 @@
 extends RefCounted
 ## Обработчики боя и визуальных эффектов клиента.
 
+const EnemyView := preload("res://scripts/enemy_view.gd")
+
 var game
 
 
@@ -16,10 +18,10 @@ func c_parried(pid: int, enemy_pos: Vector2) -> void:
 		return
 	var mid: Vector2 = v.position.lerp(enemy_pos, 0.45) + Vector2(0, -14)
 	game.fx.burst(mid, Color(1.0, 0.9, 0.55), 18, false)
-	game.float_text(v.position + Vector2(0, -46), "Парировано!", Color(1.0, 0.9, 0.55))
+	float_text(v.position + Vector2(0, -46), "Парировано!", Color(1.0, 0.9, 0.55))
 	Sfx.play_at("bell", v.position, game.my_pos)
 	if pid == game.my_id:
-		game.parry_ready_at = Time.get_ticks_msec() + 600
+		game.client_input.parry_ready_at = Time.get_ticks_msec() + 600
 		game.fx.shake = 0.12
 
 
@@ -63,14 +65,14 @@ func c_levelup(pid: int, level: int) -> void:
 	var v = game.player_views.get(pid)
 	if v:
 		game.fx.burst(v.position + Vector2(0, -14), Color(1, 0.85, 0.4), 40, true)
-		game.float_text(v.position + Vector2(0, -52), "УРОВЕНЬ %d!" % level, Color(1, 0.85, 0.4))
+		float_text(v.position + Vector2(0, -52), "УРОВЕНЬ %d!" % level, Color(1, 0.85, 0.4))
 		game.ui.add_feed("%s достиг %d уровня!" % [v.pname, level], Color(1, 0.85, 0.4))
 	if pid == game.my_id:
 		Sfx.fanfare(2)
 
 
 func c_enemy_spawn(d: Array) -> void:
-	var v = game.EnemyView.new()
+	var v = EnemyView.new()
 	v.setup(d[1], d[2], d[3], d[4])
 	v.elite = d.size() > 5 and bool(d[5])
 	game.entities.add_child(v)
@@ -83,7 +85,7 @@ func c_enemy_hit(eid: int, hp: int, dmg: int, crit: bool) -> void:
 		v.hp = hp
 		v.flash()
 		Sfx.play_at("hit_stone" if v.kind == "golem" else ("crit" if crit else "hit"), v.position, game.my_pos)
-		game.float_text(v.position + Vector2(0, -30), ("%d!" % dmg) if crit else str(dmg),
+		float_text(v.position + Vector2(0, -30), ("%d!" % dmg) if crit else str(dmg),
 			Color(1, 0.85, 0.2) if crit else Color.WHITE)
 
 
@@ -110,7 +112,7 @@ func c_hp(pid: int, hp: int, max_hp: int, dealt: int) -> void:
 		v.max_hp = max_hp
 		if dealt > 0:
 			v.hurt()
-			game.float_text(v.position + Vector2(0, -44), "-%d" % dealt, Color(1, 0.35, 0.3))
+			float_text(v.position + Vector2(0, -44), "-%d" % dealt, Color(1, 0.35, 0.3))
 	if pid == game.my_id and not game.me.is_empty():
 		game.me.hp = hp
 		game.me.max_hp = max_hp
@@ -154,7 +156,7 @@ func c_gift_motion(values: Dictionary) -> void:
 
 
 func c_parry_reset() -> void:
-	game.parry_ready_at = 0
+	game.client_input.parry_ready_at = 0
 
 
 func c_enemy_elite(eid: int, hp: int, maximum: int) -> void:
@@ -166,4 +168,4 @@ func c_enemy_elite(eid: int, hp: int, maximum: int) -> void:
 
 
 func c_dash_reset() -> void:
-	game.dash_charges.used.clear()
+	game.client_input.dash_charges.used.clear()

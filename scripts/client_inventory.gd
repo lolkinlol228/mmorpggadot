@@ -1,7 +1,10 @@
 extends RefCounted
 ## Инвентарь, подбор добычи и торговля на клиенте.
 
+const LootView := preload("res://scripts/loot_view.gd")
+
 var game
+var full_hint_at := 0
 
 
 func request_equip(uid: String) -> void:
@@ -56,8 +59,8 @@ func _auto_pickup() -> void:
 		if game.loot_views[lid].position.distance_to(game.my_pos) > game.PICKUP_RADIUS * Rules.Gifts.factor(game.me, "pickup"):
 			continue
 		if game.me.inv.size() >= Items.bag_capacity(game.me) and not Items.is_stack(game.loot_views[lid].item) and game.loot_views[lid].item.base != "coins":
-			if now - game.full_hint_at > 4000:
-				game.full_hint_at = now
+			if now - full_hint_at > 4000:
+				full_hint_at = now
 				game.ui.add_feed("Сумка полна! Выкинуть пока нельзя — надень лучшее или обменяй.", game.GREY)
 			return
 		if now - int(game.pending_pickup.get(lid, -100000)) > 1500:
@@ -74,11 +77,11 @@ func c_equip(pid: int, equip: Dictionary) -> void:
 
 
 func c_loot(lid: int, item: Dictionary, pos: Vector2) -> void:
-	game._add_loot(lid, item, pos, true)
+	_add_loot(lid, item, pos, true)
 
 
 func _add_loot(lid: int, item: Dictionary, pos: Vector2, fresh: bool) -> void:
-	var v = game.LootView.new()
+	var v = LootView.new()
 	v.item = item
 	v.position = pos
 	game.entities.add_child(v)
