@@ -100,7 +100,7 @@ func _private(pid: int) -> Dictionary:
 	var p: Dictionary = players[pid]
 	return {"inv": p.inv.duplicate(true), "equip": p.equip.duplicate(true), "coins": p.coins, "look": p.look,
 		"bank": p.bank.duplicate(true), "bounties": p.bounties.duplicate(),
-		"materials": p.materials.duplicate(), "professions": p.professions.duplicate(), "tools": p.tools.duplicate(),
+		"materials": p.materials.duplicate(), "professions": p.professions.duplicate(), "tools": p.tools.duplicate(), "recipes": p.get("recipes", []).duplicate(),
 		"visited": p.visited.duplicate(), "temp_gifts": p.get("temp_gifts", {}).duplicate(), "cross_skill": p.cross_skill,
 		"hp": p.hp, "max_hp": p.max_hp, "pos": p.pos, "level": p.level, "xp": p.xp, "points": p.points,
 		"stats": p.stats.duplicate(), "cds": skills.cds_left(p), "buffs": skills.buffs_left(p),

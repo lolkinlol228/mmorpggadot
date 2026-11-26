@@ -283,6 +283,17 @@ func _hero_steps() -> void:
 			hp2.materials["herb"] = 2
 			hp2.materials["star_iron"] = 5
 			var m1: String = R.craft(game.host, game.my_id, "acid_essence")
+			var locked: String = R.craft(game.host, game.my_id, "acid_blade")      # без рецепта — отказ
+			var scroll := Items.make("recipe_acid_blade", 3, "", false)
+			game.host.eco.add_item(hp2, scroll)
+			game.host.eco._use(hp2, scroll.uid)                                  # изучить рецепт
+			var scraps := Items.make("recipe_scrap", 0, "", false)
+			scraps.count = 10
+			game.host.eco.add_item(hp2, scraps)
+			hp2.materials["herb"] = 2
+			hp2.materials["gem"] = 1
+			var m2: String = R.craft(game.host, game.my_id, "scrap")             # рецепт из обрывков
+			print("[autotest] рецепты: без рецепта «%s»; изучено %s; из обрывков «%s»" % [locked, str(hp2.get("recipes", [])), m2])
 			R.craft(game.host, game.my_id, "acid_blade")
 			var blade_uid := ""
 			for it in hp2.inv:

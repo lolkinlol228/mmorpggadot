@@ -53,6 +53,14 @@ const BASES := {
 	"golem_heart": {"name": "Сердце голема", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(15, 12), "stack": 20, "component": true},
 	"lantern_soul": {"name": "Душа фонаря", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(9, 10), "stack": 20, "component": true},
 	"champion_seal": {"name": "Печать чемпиона", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 20, "component": true},
+	# рецепты реликвий — выбиваются или собираются из обрывков; клик в сумке — изучить навсегда (relics.gd)
+	"recipe_scrap": {"name": "Обрывок рецепта", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(12, 13), "stack": 99},
+	"recipe_acid_blade": {"name": "Рецепт: Разъедающий клинок", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "acid_blade"},
+	"recipe_moon_bow": {"name": "Рецепт: Лук Лунной стаи", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "moon_bow"},
+	"recipe_mountain_hammer": {"name": "Рецепт: Молот Каменной Горы", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "mountain_hammer"},
+	"recipe_soul_lantern": {"name": "Рецепт: Фонарь душ", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "soul_lantern"},
+	"recipe_shadow_fang": {"name": "Рецепт: Клык тени", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "shadow_fang"},
+	"recipe_dawn_scepter": {"name": "Рецепт: Скипетр Рассвета", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "dawn_scepter"},
 	# реликвии — именное оружие из компонентов; art — чей спрайт, grants — дары, которые оно даёт владельцу
 	"acid_blade": {"name": "Разъедающий клинок", "slot": "weapon", "dmg": 20, "armor": 0, "art": "sword", "relic": true,
 		"grants": ["poisoned_blade", "armor_breaker"], "glow": Color(0.5, 1.0, 0.35), "icon": Vector2i(1, 5)},
@@ -74,7 +82,9 @@ const COIN_NAMES := ["Платиновый Осколок", "Золотой", "�
 const COIN_SHORT := ["пл.", "зол.", "сер.", "мед."]
 const COIN_SHEET := preload("res://assets/custom/coins.png")     # медь, серебро, золото, платина
 # цена предметов в медяках (до множителя редкости)
-const VALUE := {"slime_gel": 2, "wolf_fang": 6, "golem_shard": 40, "echo_dust": 5, "elite_mark": 30,
+const VALUE := {"recipe_scrap": 25, "recipe_acid_blade": 700, "recipe_moon_bow": 900, "recipe_mountain_hammer": 1500,
+	"recipe_soul_lantern": 1100, "recipe_shadow_fang": 1100, "recipe_dawn_scepter": 1200,
+	"slime_gel": 2, "wolf_fang": 6, "golem_shard": 40, "echo_dust": 5, "elite_mark": 30,
 	"acid_essence": 60, "pack_charm": 120, "golem_heart": 300, "lantern_soul": 150, "champion_seal": 260,
 	"acid_blade": 2500, "moon_bow": 3000, "mountain_hammer": 4500, "soul_lantern": 3500, "shadow_fang": 3500, "dawn_scepter": 3800,
 	"shield": 14, "meal": 4, "scroll": 7, "book": 9,"sword": 12, "axe": 15, "dagger": 9, "staff": 14, "wand": 11, "bow": 13, "hammer": 15, "jerkin": 14,
@@ -305,6 +315,12 @@ func tooltip(it: Dictionary) -> String:
 	if it.base == "potion":
 		lines.append("Расходник · лечит %d здоровья" % b.heal)
 		lines.append("Клик в сумке — выпить")
+		lines.append("Цена у торговки: %s" % format_coins(value(it)))
+		return "\n".join(lines)
+	if b.has("teaches"):
+		lines.append("Рецепт реликвии · клик в сумке — изучить навсегда")
+		lines.append("Учит ковать: %s" % BASES[b.teaches].name)
+		lines.append("Пока не прочитан, его можно продать или обменять")
 		lines.append("Цена у торговки: %s" % format_coins(value(it)))
 		return "\n".join(lines)
 	if b.slot == "trophy":

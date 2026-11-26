@@ -56,7 +56,7 @@ func store_char(data: Dictionary) -> void:
 func sanitize_char(d) -> Dictionary:
 	var out := {"name": "Игрок", "coins": 0, "inv": [], "equip": {}, "look": {}, "bank": [], "bounties": {},
 		"level": 1, "xp": 0, "points": 0, "stats": {}, "cls": "warrior", "gifts": [], "gift_state": {"fate_blade": 0, "devourer": 0, "pet": false},
-		"materials": {}, "professions": {}, "visited": {"ford": true}, "tools": {"wear": 0.0, "tier": 1}, "cross_skill": ""}
+		"materials": {}, "professions": {}, "visited": {"ford": true}, "tools": {"wear": 0.0, "tier": 1}, "cross_skill": "", "recipes": []}
 	if not (d is Dictionary):
 		return out
 	var n := str(d.get("name", "")).strip_edges().left(16)
@@ -89,6 +89,11 @@ func sanitize_char(d) -> Dictionary:
 	var visited = d.get("visited", {})
 	if visited is Dictionary and visited.get("east") is bool and visited.east:
 		out.visited.east = true
+	var known = d.get("recipes", [])                              # изученные рецепты реликвий
+	if known is Array:
+		for key in known:
+			if preload("res://scripts/relics.gd").RELICS.has(str(key)) and str(key) not in out.recipes:
+				out.recipes.append(str(key))
 	var extra := str(d.get("cross_skill", ""))
 	if Rules.SKILLS.has(extra):
 		out.cross_skill = extra

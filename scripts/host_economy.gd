@@ -128,6 +128,13 @@ func _use(p: Dictionary, uid: String) -> String:
 	if i < 0:
 		return ""
 	var it: Dictionary = p.inv[i]
+	if Items.BASES[it.base].has("teaches"):                      # рецепт реликвии: изучить и потратить
+		var msg: String = preload("res://scripts/relics.gd").learn(host, host._sender(), str(Items.BASES[it.base].teaches))
+		if msg == "":
+			it.count = int(it.count) - 1
+			if it.count <= 0:
+				p.inv.remove_at(i)
+		return msg
 	if it.base in ["meal", "scroll", "book"]:
 		it.count = int(it.count) - 1
 		if it.count <= 0:

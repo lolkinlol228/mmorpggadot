@@ -120,6 +120,20 @@ func _workshop_page(p: Dictionary) -> void:
 				add_action("   ↳ из: %s (%d)" % [Professions.NAMES[mat], maxi(top, rich)], "make", base + ":fine")
 	_relic_section(p, "Компоненты (из трофеев)", Relics.COMPONENTS)
 	_relic_section(p, "Реликвии", Relics.RELICS)
+	if Relics.count(p.inv, "recipe_scrap") > 0:
+		_header("Рецепты")
+		add_action("Собрать рецепт реликвии (случайный)", "relic", "scrap", Relics.can_make(p, "scrap"))
+		var need := Kit.label("   " + Relics.need_text(p, "scrap", Professions.NAMES), 9, Kit.DIM)
+		rows.add_child(need)
+	var known: Array = p.get("recipes", [])
+	if not known.is_empty():
+		var names := PackedStringArray()
+		for key in known:
+			names.append(Items.BASES[key].name)
+		var kl := Kit.label("Изучено: " + ", ".join(names), 9, Color(1.0, 0.8, 0.45))
+		kl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		kl.custom_minimum_size = Vector2(268, 0)
+		rows.add_child(kl)
 	var gear: Array = []
 	for item in p.inv:
 		if Items.slot_of(item) in Items.SLOTS:
@@ -155,7 +169,8 @@ func _relic_section(p: Dictionary, title: String, table: Dictionary) -> void:
 			_header(title)
 			shown = true
 		var b: Dictionary = Items.BASES[key]
-		add_action("%s%s" % ["★ " if b.get("relic", false) else "", b.name], "relic", key, Relics.can_make(p, key))
+		var lock := "" if Relics.knows(p, key) else " [нет рецепта]"
+		add_action("%s%s%s" % ["★ " if b.get("relic", false) else "", b.name, lock], "relic", key, Relics.can_make(p, key))
 		var need := Kit.label("   " + Relics.need_text(p, key, Professions.NAMES), 9, Kit.DIM)
 		need.autowrap_mode = TextServer.AUTOWRAP_WORD
 		need.custom_minimum_size = Vector2(268, 0)

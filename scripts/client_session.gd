@@ -19,7 +19,8 @@ func c_self(priv: Dictionary) -> void:
 		"look": game.me.get("look", {}), "bank": game.me.get("bank", []), "bounties": game.me.get("bounties", {}),
 		"level": game.me.get("level", 1), "xp": game.me.get("xp", 0), "points": game.me.get("points", 0), "stats": game.me.get("stats", {}),
 		"cls": game.me.get("cls", "warrior"), "gifts": game.me.get("gifts", []), "gift_state": game.me.get("gift_state", {}), "materials": game.me.get("materials", {}), "professions": game.me.get("professions", {}),
-		"tools": game.me.get("tools", {}), "visited": game.me.get("visited", {}), "cross_skill": game.me.get("cross_skill", "")})
+		"tools": game.me.get("tools", {}), "visited": game.me.get("visited", {}), "cross_skill": game.me.get("cross_skill", ""),
+		"recipes": game.me.get("recipes", [])})
 
 
 func c_init(ps: Array, es: Array, ls: Array, priv: Dictionary) -> void:
