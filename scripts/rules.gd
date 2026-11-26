@@ -6,16 +6,19 @@ const Gifts := preload("res://scripts/gifts.gd")
 
 const STATS := ["str", "agi", "vit", "spi", "int", "def", "luk", "spd"]
 const STAT_NAMES := {"str": "Сила", "agi": "Ловкость", "vit": "Живучесть", "spi": "Дух",
-	"int": "Интеллект", "def": "Стойкость", "luk": "Удача", "spd": "Быстрота"}
-const STAT_HELP := {"str": "+0,6 к урону за очко", "agi": "+0,6% крита и +1,2% скорости атаки за очко",
-	"vit": "+6 здоровья и +3% восстановления выносливости за очко",
-	"spi": "+6 маны, перезарядка умений −2%, лечение +4% за очко",
-	"int": "умения бьют сильнее: +2% за очко", "def": "+1 броня за очко",
-	"luk": "+0,3% крита, +2% силы крита, +1% к редким находкам за очко",
-	"spd": "+0,6% скорости бега и +0,4% уклонения за очко"}
-## Новые характеристики считаются от вложенных очков (база 5 у них ничего не даёт), чтобы не менять баланс старых героев.
-const STAT_PER := {"int_skill": 0.02, "def_armor": 1.0, "luk_crit": 0.003, "luk_crit_dmg": 0.02, "luk_find": 0.01,
-	"spd_speed": 0.006, "spd_dodge": 0.004}
+	"int": "Интеллект", "def": "Стойкость", "luk": "Удача", "spd": "Скорость"}
+## Баланс: каждое очко даёт примерно +3% к главному эффекту своей характеристики на 5–10 уровне.
+## Точная прибавка следующего очка показывается в подсказке окна героя (считается по этим же формулам).
+const STAT_HELP := {"str": "урон оружием: +1 за очко", "agi": "крит +0,8% и скорость атаки +1,8% за очко",
+	"vit": "здоровье +8 и выносливость +3% за очко",
+	"spi": "мана +6, перезарядка умений −2%, лечение +4% за очко",
+	"int": "урон умений +3% за очко", "def": "броня +1,5 за очко (каждая единица снимает 0,5 урона с удара)",
+	"luk": "крит +0,4%, сила крита +3%, редкие находки +1,5% за очко",
+	"spd": "скорость бега +1% и уклонение +0,6% за очко"}
+## Новые характеристики считаются от очков сверх базы 5 (вложенные + раса + класс).
+const STAT_PER := {"str_dmg": 1.0, "agi_crit": 0.008, "agi_aspd": 0.018, "vit_hp": 8.0,
+	"int_skill": 0.03, "def_armor": 1.5, "luk_crit": 0.004, "luk_crit_dmg": 0.03, "luk_find": 0.015,
+	"spd_speed": 0.01, "spd_dodge": 0.006}
 const BASE_STAT := 5
 const POINTS_PER_LEVEL := 4
 const XP_FOR_KILL := {"undead": 27, "slime": 8, "wolf": 18, "golem": 250}
@@ -232,7 +235,7 @@ func stat(p: Dictionary, s: String) -> int:
 
 ## Максимум здоровья с активными модификаторами хоста.
 func max_hp(p: Dictionary, gift_factor: float = -1.0) -> int:
-	return int((80 + stat(p, "vit") * 6 + int(p.get("level", 1)) * 4) * float(class_of(p).hp_mult) * (Gifts.factor(p, "hp") if gift_factor < 0.0 else gift_factor))
+	return int((80 + stat(p, "vit") * STAT_PER.vit_hp + int(p.get("level", 1)) * 4) * float(class_of(p).hp_mult) * (Gifts.factor(p, "hp") if gift_factor < 0.0 else gift_factor))
 
 
 func damage(p: Dictionary) -> float:
@@ -242,7 +245,7 @@ func damage(p: Dictionary) -> float:
 ## Урон до применения даров.
 func base_damage(p: Dictionary) -> float:
 	var fists := 4.0 if not p.get("equip", {}).has("weapon") and Gifts.has_flag(p, "fists") else 0.0
-	return (4.0 + fists + _gear_sum(p, "dmg") + stat(p, "str") * 0.6) * float(race_of(p).get("dmg_mult", 1.0))
+	return (4.0 + fists + _gear_sum(p, "dmg") + stat(p, "str") * STAT_PER.str_dmg) * float(race_of(p).get("dmg_mult", 1.0))
 
 
 func crit_chance(p: Dictionary) -> float:
@@ -251,12 +254,12 @@ func crit_chance(p: Dictionary) -> float:
 
 ## Шанс крита до даров и потолка.
 func base_crit_chance(p: Dictionary) -> float:
-	return stat(p, "agi") * 0.006 + float(race_of(p).get("crit", 0.0)) + extra(p, "luk") * STAT_PER.luk_crit
+	return stat(p, "agi") * STAT_PER.agi_crit + float(race_of(p).get("crit", 0.0)) + extra(p, "luk") * STAT_PER.luk_crit
 
 
 ## Делитель перезарядки атаки.
 func attack_speed(p: Dictionary, bonus: float = INF) -> float:
-	return clampf(1.0 + stat(p, "agi") * 0.012 + (Gifts.mod(p, "aspd") if bonus == INF else bonus), 0.1, 1.0 + Gifts.CAPS.aspd)
+	return clampf(1.0 + stat(p, "agi") * STAT_PER.agi_aspd + (Gifts.mod(p, "aspd") if bonus == INF else bonus), 0.1, 1.0 + Gifts.CAPS.aspd)
 
 
 func armor(p: Dictionary) -> int:
@@ -292,7 +295,7 @@ func crit_mult(p: Dictionary) -> float:
 	return 2.0 + extra(p, "luk") * STAT_PER.luk_crit_dmg
 
 
-## Уклонение от Быстроты (складывается с дарами, общий потолок Gifts.CAPS.dodge).
+## Уклонение от Скорости (складывается с дарами, общий потолок Gifts.CAPS.dodge).
 func dodge_bonus(p: Dictionary) -> float:
 	return extra(p, "spd") * STAT_PER.spd_dodge
 

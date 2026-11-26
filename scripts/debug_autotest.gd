@@ -219,7 +219,7 @@ func _hero_steps() -> void:
 			game.ui.inv_panel.hide()
 			game.ui.charwin.toggle()
 		if t > 16.9 and _once("hover_crit"):          # подсказка по наведению: последний ряд окна героя
-			_hover(game.ui.charwin.cells["xp"][1])
+			_hover(game.ui.charwin.stat_cells["str"][0])
 		if t > 17.4 and _once("log_stats"):
 			var line := PackedStringArray()
 			for st in Rules.STATS:

@@ -223,7 +223,7 @@ func _allies_near(pos: Vector2, radius: float) -> Array:
 	var out := []
 	for pid in host.players:
 		var o: Dictionary = host.players[pid]
-		if int(o.hp) > 0 and o.pos.distance_to(pos) <= radius:
+		if o.has("hp") and int(o.hp) > 0 and o.pos.distance_to(pos) <= radius:   # игрок ещё входит в мир — пропускаем
 			out.append(pid)
 	return out
 

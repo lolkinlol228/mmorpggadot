@@ -166,6 +166,47 @@ func _show_gifts(list: Array) -> void:
 		gifts_box.add_child(l)
 
 
+## Ключевые итоговые числа героя: [название, значение, доля (true) или число (false)].
+func _snapshot(p: Dictionary) -> Array:
+	return [
+		["здоровье", float(Rules.max_hp(p)), false],
+		["урон", Rules.damage(p), false],
+		["урон умений", Rules.skill_power(p), true],
+		["крит", Rules.crit_chance(p), true],
+		["сила крита", Rules.crit_mult(p) * Gifts.factor(p, "crit_dmg"), false],
+		["скорость атаки", Rules.attack_speed(p), true],
+		["броня", float(Rules.armor(p)), false],
+		["уклонение", clampf(Gifts.mod(p, "dodge") + Rules.dodge_bonus(p), 0.0, Gifts.CAPS.dodge), true],
+		[Rules.RES_NAMES[Rules.res_kind(p)].to_lower(), float(Rules.res_max(p)), false],
+		["перезарядка", 1.0 - Rules.cd_mult(p), true],
+		["лечение", Rules.heal_power(p), true],
+		["скорость бега", Rules.speed_mult(p), true],
+		["выносливость", Rules.stamina_regen(p), true],
+		["редкие находки", minf(Gifts.CAPS.rare_find, Gifts.mod(p, "rare_find") + Rules.luck_find(p)), true],
+	]
+
+
+## Что изменится от ещё одного очка в характеристике s (те же формулы, что у хоста).
+func _preview(me: Dictionary, s: String) -> String:
+	var after := me.duplicate(true)
+	var st: Dictionary = after.get("stats", {})
+	st[s] = int(st.get(s, 0)) + 1
+	after["stats"] = st
+	var a := _snapshot(me)
+	var b := _snapshot(after)
+	var lines := PackedStringArray()
+	for i in a.size():
+		var d: float = float(b[i][1]) - float(a[i][1])
+		if absf(d) < 0.0005:
+			continue
+		if a[i][2]:
+			lines.append("  %s +%.1f%%" % [a[i][0], d * 100.0])
+		else:
+			var rel := d / maxf(0.001, float(a[i][1])) * 100.0
+			lines.append("  %s +%s (+%.1f%%)" % [a[i][0], ("%.2f" % d) if d < 1.0 else ("%.1f" % d), rel])
+	return "\n".join(lines) if not lines.is_empty() else "  упирается в потолок"
+
+
 func _pct(x: float) -> String:
 	return "%d%%" % roundi(x * 100.0)
 
@@ -207,6 +248,7 @@ func refresh(me: Dictionary) -> void:
 		var tip := "%s — %s" % [Rules.STAT_NAMES[s], Rules.STAT_HELP[s]]
 		if bonus > 0:
 			tip += "\nРаса и класс: +%d" % bonus
+		tip += "\nСледующее очко:\n" + _preview(me, s)
 		cell[2].tooltip_text = tip
 		cell[0].tooltip_text = tip
 
