@@ -23,10 +23,13 @@ var talents
 var professions
 var enemy_gift_ai
 var host_enemies
+var host_players
 var skills                   # host_skills.gd
 
 
 func _ready() -> void:
+	host_players = preload("res://scripts/host_players.gd").new()
+	host_players.host = self
 	host_enemies = preload("res://scripts/host_enemies.gd").new()
 	host_enemies.host = self
 	skills = preload("res://scripts/host_skills.gd").new()
@@ -115,75 +118,19 @@ func _send_self(pid: int) -> void:
 # ---------- игроки ----------
 
 func register(data: Dictionary) -> void:
-	var id := _sender()
-	if players.has(id):
-		return
-	var p := Save.sanitize_char(data)
-	p.merge({"pos": game.SPAWN + Vector2(randf_range(-30, 30), randf_range(-10, 20)),
-		"facing": Vector2.RIGHT, "trade": 0, "invite": -1, "cds": {}, "buffs": {}})
-	p.peer_id = id
-	p.gift_dash = preload("res://scripts/dash_charges.gd").new()
-	p.moved_at = Time.get_ticks_msec()
-	players[id] = p
-	p.max_hp = Rules.max_hp(p, gifts.factor(id, "hp"))
-	p.hp = p.max_hp
-	skills.init_res(p)
-	print("[host] игрок вошёл: %s (peer %d), предметов: %d" % [p.name, id, p.inv.size()])
-	var ps := []
-	for pid in players:
-		ps.append(_public(pid))
-	var es := []
-	for eid in enemies:
-		var e: Dictionary = enemies[eid]
-		es.append([eid, e.kind, e.pos, e.hp, e.max_hp, e.get("elite", false)])
-	var ls := []
-	for lid in loots:
-		ls.append([lid, loots[lid].item, loots[lid].pos])
-	_to(id, "c_init", [ps, es, ls, _private(id)])
-	for mark in professions.carcasses:
-		_to(id, "c_adventure_mark", [mark, professions.carcasses[mark].pos, true])
-	for other in players:
-		if other != id:
-			_to(other, "c_player_joined", [_public(id)])
-	_all("c_announce", ["%s входит в мир" % p.name, Color(0.7, 0.9, 1.0)])
+	host_players.register(data)
 
 
 func on_peer_disconnected(id: int) -> void:
-	if not players.has(id):
-		return
-	var tid: int = players[id].trade
-	if trader.trades.has(tid):
-		trader.close_trade(tid, "Партнёр по обмену вышел из игры.")
-	var pname: String = players[id].name
-	players.erase(id)
-	_all("c_adventure_mark", ["pet_%d" % id, Vector2.ZERO, false])
-	_all("c_player_left", [id])
-	_all("c_announce", ["%s покидает мир" % pname, game.GREY])
+	host_players.on_peer_disconnected(id)
 
 
 func update_pos(pos: Vector2, facing: Vector2) -> void:
-	var p = players.get(_sender())
-	if p == null or int(p.hp) <= 0:
-		return
-	if not pos.is_finite() or not facing.is_finite() or not can_act(p) or gifts.now() < int(p.get("forced_from_until", 0)):
-		return
-	if pos.distance_to(p.pos) > 120.0:
-		return
-	talents.movement(p, pos)
-	if p.pos.distance_squared_to(pos) > 0.01:
-		p.moved_at = Time.get_ticks_msec()
-	p.pos = pos.clamp(Vector2(24, 24), game.WORLD_SIZE - Vector2(24, 24))
-	p.facing = facing
+	host_players.update_pos(pos, facing)
 
 
 func _process(delta: float) -> void:
-	var me = players.get(game.my_id)
-	if me and can_act(me):
-		talents.movement(me, game.my_pos)
-		if me.pos.distance_squared_to(game.my_pos) > 0.01:
-			me.moved_at = Time.get_ticks_msec()
-		me.pos = game.my_pos
-		me.facing = game.my_facing
+	host_players.sync_local()
 	_enemy_ai(delta)
 	gifts.update()
 	professions.update()
@@ -204,31 +151,7 @@ func _process(delta: float) -> void:
 
 
 func _players_tick(delta: float) -> void:
-	regen_acc += delta
-	var regen := regen_acc >= 1.0
-	if regen:
-		regen_acc = 0.0
-	for pid in players:
-		var p: Dictionary = players[pid]
-		talents.update_revive(pid)
-		if int(p.hp) <= 0:
-			p.dead_t = float(p.get("dead_t", RESPAWN_TIME)) - delta
-			if p.dead_t <= 0.0:
-				p.hp = p.max_hp
-				p.gift_low = false
-				p.gift_critical = false
-				if gifts.has(p, "respawn_shield"):
-					p.invuln_until = gifts.now() + 10000
-				p.pos = game.SPAWN
-				_to(pid, "c_teleport", [game.SPAWN, false])
-				_all("c_hp", [pid, p.hp, p.max_hp, 0])
-		elif regen and p.hp < p.max_hp and Time.get_ticks_msec() - int(p.get("hurt_at", 0)) > 4000:
-			p.gift_regen = float(p.get("gift_regen", 0.0)) + 4 * float(Rules.race_of(p).get("regen_mult", 1.0)) * gifts.factor(pid, "hp_regen") * (2.0 - gifts.ratio(p) if gifts.has(p, "hydra") else 1.0)
-			var amount := int(p.gift_regen)
-			p.gift_regen -= amount
-			p.hp = mini(p.max_hp, p.hp + amount)
-			_all("c_hp", [pid, p.hp, p.max_hp, 0])
-	skills.res_tick(delta)
+	host_players._players_tick(delta)
 
 
 func dash(dir: Vector2) -> void:
@@ -336,7 +259,6 @@ func _broadcast_state() -> void:
 	game.c_state(ps, es)
 
 
-# ---------- враги и бой ----------
 
 func _count(kind: String) -> int:
 	return host_enemies._count(kind)
