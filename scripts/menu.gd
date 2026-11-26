@@ -109,9 +109,9 @@ func _ready() -> void:
 	var hint := Kit.label("По интернету: хост открывает порт 7777 (UDP) или все ставят Radmin VPN / ZeroTier. " +
 		"В одной Wi-Fi сети — подключайтесь по локальному IP.", 9, Kit.DIM)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.custom_minimum_size = Vector2(230, 0)
-	col.add_child(hint)
+	hint.custom_minimum_size = Vector2(190, 0)
+	box.add_child(Kit.divider())
+	box.add_child(hint)                  # в правой колонке: внизу экрана на 720p она обрезалась
 
 	_refresh_fate()
 	_apply_cmdline_args()

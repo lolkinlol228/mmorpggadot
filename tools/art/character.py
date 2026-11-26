@@ -22,7 +22,7 @@ BEARDS = ["full", "moustache", "stubble"]
 MARKS = ["scar", "freckles", "warpaint"]
 
 SKIN_TONES = {"light": (232, 184, 150), "mid": (204, 146, 108), "dark": (132, 90, 66),
-              "pale": (226, 220, 210), "green": (128, 168, 88), "olive": (150, 152, 92),
+              "pale": (226, 220, 210), "green": (128, 168, 88), "olive": (170, 172, 106),
               "moss": (98, 132, 80), "ash": (168, 168, 176), "bluish": (150, 168, 190),
               "lime": (158, 186, 84), "khaki": (172, 162, 104), "greygreen": (128, 148, 118)}
 RACES = {
