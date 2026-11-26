@@ -9,6 +9,7 @@ var client_inventory
 var client_adventure
 var client_session
 var client_world
+var client_market
 var interact
 var open_spot := -1
 
@@ -53,6 +54,8 @@ func _ready() -> void:
 	client_input.game = self
 	client_world = preload("res://scripts/client_world.gd").new()
 	client_world.game = self
+	client_market = preload("res://scripts/client_market.gd").new()
+	client_market.game = self
 	client_world.start()
 
 func _process(delta: float) -> void:
@@ -346,3 +349,15 @@ func c_dash_reset() -> void:
 @rpc("authority", "call_remote", "reliable")
 func c_adventure_decoy(pid: int, pos: Vector2, duration: float) -> void:
 	client_adventure.c_adventure_decoy(pid, pos, duration)
+
+
+## Запрос к рынку проверяет только хост.
+@rpc("any_peer", "call_remote", "reliable")
+func h_market(op: String, arg: Dictionary) -> void:
+	if host: host.market.handle(op, arg)
+
+
+## Результат поиска или сделки получает владелец окна.
+@rpc("authority", "call_remote", "reliable")
+func c_market(data: Dictionary) -> void:
+	client_market.receive(data)

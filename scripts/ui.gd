@@ -29,6 +29,7 @@ var menu_panel: PanelContainer
 var invite_from := -1
 var adventure_panel := preload("res://scripts/adventure_panel.gd").new()
 var inv_grid: GridContainer
+var market
 var shop                         # окна хранилища/лавки/доски/разговора
 var trading := false
 var charwin                      # окно героя (C)
@@ -56,6 +57,10 @@ func _ready() -> void:
 	shop.ui = self
 	root.add_child(shop)
 	shop.build()
+	market = preload("res://scripts/ui_market.gd").new()
+	market.game = game
+	root.add_child(market)
+	market.build()
 	charwin = CharWindow.new()
 	charwin.game = game
 	add_child(charwin)
@@ -87,6 +92,7 @@ func refresh() -> void:
 	stats_label.text = "Урон   %.0f\nБроня  %d\nМега-находки %d" % [
 		Rules.damage(me), Rules.armor(me), jackpots]
 	shop.refresh()
+	market.refresh_inventory()
 	adventure_panel.refresh()
 	for slot in equip_slots:
 		equip_slots[slot].set_item(me.equip.get(slot))
@@ -103,7 +109,7 @@ func add_feed(text: String, color: Color) -> void:
 
 
 func is_typing() -> bool:
-	return hud.is_typing()
+	return hud.is_typing() or (market != null and market.is_typing())
 
 
 func open_chat() -> void:

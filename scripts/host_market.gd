@@ -163,10 +163,10 @@ func handle(op: String, arg: Dictionary) -> void:
 	var outcome := {}
 	match op:
 		"post":
-			if arg.get("uid") is String and integer(arg.get("price"), 1, MAX_PRICE):
+			if arg.get("uid") is String and arg.uid.length() <= 80 and integer(arg.get("price"), 1, MAX_PRICE):
 				outcome = post(pid, arg.uid, int(arg.price))
 		"buy", "cancel":
-			if arg.get("id") is String:
+			if arg.get("id") is String and arg.id.length() <= 80:
 				outcome = buy(pid, arg.id) if op == "buy" else cancel(pid, arg.id)
 		"collect": outcome = collect(pid)
 	if outcome.is_empty():
@@ -283,7 +283,13 @@ func collect(pid: int) -> Dictionary:
 
 ## Проверяет фильтры и страницы до преобразования входных данных.
 func valid_query(query: Dictionary) -> bool:
-	return query.get("text", "") is String and str(query.get("text", "")).length() <= 80 and query.get("slot", "") is String and query.get("slot", "") in ["", "weapon", "head", "body", "feet", "offhand", "use"] and integer(query.get("rarity", -1), -1, 5) and integer(query.get("page", 0), 0, 1000000) and query.get("descending", false) is bool
+	var text = query.get("text", "")
+	var slot = query.get("slot", "")
+	if not (text is String and text.length() <= 80 and slot is String):
+		return false
+	if slot not in ["", "weapon", "head", "body", "feet", "offhand", "use"]:
+		return false
+	return integer(query.get("rarity", -1), -1, 5) and integer(query.get("page", 0), 0, 1000000) and query.get("descending", false) is bool
 
 
 ## Отдаёт только одну страницу поиска, свои лоты и сводку выплат.
@@ -315,8 +321,13 @@ func page(pid: int, query: Dictionary) -> Dictionary:
 
 ## Последняя продажа той же базы и редкости.
 func last_price(item: Dictionary) -> int:
-	for i in range(history.size() - 1, -1, -1):
-		var entry: Dictionary = history[i]
+	return price_from_history(item, history)
+
+
+## Единый поиск последней цены для сервера и окна продажи.
+static func price_from_history(item: Dictionary, entries: Array) -> int:
+	for i in range(entries.size() - 1, -1, -1):
+		var entry: Dictionary = entries[i]
 		if entry.item.base == item.base and int(entry.item.rarity) == int(item.rarity):
 			return int(entry.price)
 	return 0

@@ -6,7 +6,7 @@ extends Node2D
 const Sites := preload("res://scripts/adventure_sites.gd")
 const Kit := preload("res://scripts/ui_kit.gd")
 const RANGE := 40.0
-const ICONS := {"bank": "coin", "shop": Vector2i(0, 10), "board": "!", "talk": Vector2i(1, 4)}
+const ICONS := {"market": Vector2i(13, 12),"bank": "coin", "shop": Vector2i(0, 10), "board": "!", "talk": Vector2i(1, 4)}
 
 var game
 var spots: Array = []
@@ -80,6 +80,10 @@ func _draw() -> void:
 			draw_set_transform(base + Vector2(0, 1), 0, Vector2(1, 0.4))
 			draw_arc(Vector2.ZERO, 13.0 + sin(t * 5.0), 0, TAU, 24, Color(1, 0.9, 0.5, 0.8), 1.5)
 			draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+		if s.kind == "market":
+			draw_rect(Rect2(base + Vector2(-7, -21), Vector2(14, 14)), Color(0.26, 0.18, 0.12))
+			draw_rect(Rect2(base + Vector2(-7, -21), Vector2(14, 14)), Color(0.80, 0.65, 0.37), false)
+			draw_line(base + Vector2(0, -7), base + Vector2(0, 1), Color(0.36, 0.24, 0.15), 3)
 		var a := 1.0 if on else 0.8
 		if s.get("action", "") == "ore" and Rules.Gifts.has_flag(game.me, "see_ore"):
 			draw_circle(base, 16.0, Color(0.38, 0.78, 1.0, 0.30))

@@ -25,6 +25,9 @@ func _ready() -> void:
 	var t: Array = zones.town
 	town = Rect2(t[0], t[1], t[2] - t[0], t[3] - t[1])
 	props = data.props
+	var sites := preload("res://scripts/adventure_sites.gd")
+	zones.interact.append({"kind": "market", "x": 1100, "y": 1010, "h": 22, "label": "Рынок"})
+	zones.interact.append({"kind": "market", "x": sites.CAMPS.east.x + 30, "y": sites.CAMPS.east.y, "h": 22, "label": "Рынок"})
 	for r in data.rects:
 		_add(Rect2(r[0], r[1], r[2], r[3]), ["r", Rect2(r[0], r[1], r[2], r[3])])
 	for c in data.circles:

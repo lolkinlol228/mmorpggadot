@@ -43,6 +43,8 @@ func open(kind: String, spot: Dictionary) -> void:
 	close_all()
 	mode = kind
 	match kind:
+		"market":
+			ui.market.open()
 		"bank":
 			bank_win.show()
 			ui.inv_panel.show()
@@ -66,6 +68,8 @@ func close_all() -> void:
 	if mode != "":
 		Sfx.play("close")
 	mode = ""
+	if ui.market:
+		ui.market.close()
 	for w in [bank_win, shop_win, board_win, talk_win]:
 		w.hide()
 
@@ -81,6 +85,9 @@ func refresh() -> void:
 
 ## Клик по вещи в сумке, пока открыто хранилище/лавка. true — клик обработан здесь.
 func bag_click(it: Dictionary) -> bool:
+	if mode == "market":
+		ui.market.select_item(it)
+		return true
 	if mode == "bank":
 		game.eco("deposit", it.uid)
 		Sfx.play("drop")
