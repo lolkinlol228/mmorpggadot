@@ -17,6 +17,7 @@ var client_input
 var client_combat
 var client_inventory
 var client_adventure
+var client_session
 var interact
 var open_spot := -1
 
@@ -59,6 +60,8 @@ const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot":
 
 
 func _ready() -> void:
+	client_session = preload("res://scripts/client_session.gd").new()
+	client_session.game = self
 	client_adventure = preload("res://scripts/client_adventure.gd").new()
 	client_adventure.game = self
 	client_inventory = preload("res://scripts/client_inventory.gd").new()
@@ -358,71 +361,27 @@ func h_eco(op: String, arg: String) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_init(ps: Array, es: Array, ls: Array, priv: Dictionary) -> void:
-	for p in ps:
-		c_player_joined(p)
-	for e in es:
-		c_enemy_spawn(e)
-	for l in ls:
-		_add_loot(l[0], l[1], l[2], false)
-	my_pos = priv.pos
-	c_self(priv)
-	print("[client] в мире: игроков %d, врагов %d" % [player_views.size(), enemy_views.size()])
+	client_session.c_init(ps, es, ls, priv)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_self(priv: Dictionary) -> void:
-	if not me.is_empty() and int(priv.coins) > int(me.coins):
-		Sfx.play("coins")
-	var old_level := int(me.get("level", 0))
-	me = priv
-	me["_recv"] = Time.get_ticks_msec()
-	ui.refresh()
-	if old_level > 0 and int(me.level) > old_level and int(me.points) > 0:
-		ui.add_feed("Новые очки характеристик! Открой окно героя: C", Color(1, 0.85, 0.4))
-	Save.store_char({"name": Net.player_name, "coins": me.coins, "inv": me.inv, "equip": me.equip,
-		"look": me.get("look", {}), "bank": me.get("bank", []), "bounties": me.get("bounties", {}),
-		"level": me.get("level", 1), "xp": me.get("xp", 0), "points": me.get("points", 0), "stats": me.get("stats", {}),
-		"cls": me.get("cls", "warrior"), "gifts": me.get("gifts", []), "gift_state": me.get("gift_state", {}), "materials": me.get("materials", {}), "professions": me.get("professions", {}),
-		"tools": me.get("tools", {}), "visited": me.get("visited", {}), "cross_skill": me.get("cross_skill", "")})
+	client_session.c_self(priv)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_player_joined(pub: Dictionary) -> void:
-	var pid := int(pub.id)
-	if player_views.has(pid):
-		return
-	var v := PlayerView.new()
-	v.pid = pid
-	v.pname = pub.name
-	v.equip = pub.equip
-	v.look = pub.get("look", {})
-	v.hp = pub.hp
-	v.max_hp = pub.max_hp
-	v.is_me = pid == my_id
-	v.position = pub.pos
-	v.target = pub.pos
-	entities.add_child(v)
-	player_views[pid] = v
+	client_session.c_player_joined(pub)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_player_left(pid: int) -> void:
-	if player_views.has(pid):
-		player_views[pid].queue_free()
-		player_views.erase(pid)
+	client_session.c_player_left(pid)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
 func c_state(ps: Array, es: Array) -> void:
-	for p in ps:
-		var v = player_views.get(p[0])
-		if v and p[0] != my_id:
-			v.target = p[1]
-			v.facing = p[2]
-	for e in es:
-		var ev = enemy_views.get(e[0])
-		if ev:
-			ev.target = e[1]
+	client_session.c_state(ps, es)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -481,13 +440,12 @@ func c_jackpot(finder: String, item: Dictionary) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_chat(from: String, text: String) -> void:
-	ui.hud.add_chat(from, text)
-	Sfx.play("hover")
+	client_session.c_chat(from, text)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_announce(text: String, color: Color) -> void:
-	ui.add_feed(text, color)
+	client_session.c_announce(text, color)
 
 
 @rpc("authority", "call_remote", "reliable")
