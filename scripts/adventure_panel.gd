@@ -1,4 +1,4 @@
-﻿extends Node
+extends Node
 ## Мастерская и действия даров доступны из игры.
 
 const Kit := preload("res://scripts/ui_kit.gd")
