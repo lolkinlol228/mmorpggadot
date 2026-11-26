@@ -243,11 +243,20 @@ func _hero_steps() -> void:
 		var ids: Array = Rules.class_skills(game.me) if not game.me.is_empty() else []
 		for i in ids.size():
 			var at := 18.0 + i * 0.6
+			if t > at - 0.3 and _once("aim%d" % i):           # прицел: зажатая клавиша показывает зону
+				game.client_input.aim_override = Vector2(64, 6)
+				if game.client_input.needs_aim(ids[i]):
+					game.client_input.aiming = ids[i]
+			if t > at - 0.15 and _once("shot_aim%d" % i) and game.client_input.aiming != "":
+				_shot("%d_aim_%s" % [8 + i, ids[i]])
 			if t > at and _once("skill%d" % i):
+				game.client_input.aiming = ""
 				game.my_facing = Vector2.RIGHT
 				game.use_skill(ids[i])
 			if t > at + 0.15 and _once("shot_skill%d" % i):
 				_shot("%d_%s" % [8 + i, ids[i]])
+			if Rules.SKILLS[ids[i]].has("delay") and t > at + float(Rules.SKILLS[ids[i]].delay) + 0.08 and _once("shot_land%d" % i):
+				_shot("%d_%s_land" % [8 + i, ids[i]])
 		if t > 20.6 and _once("hero_log"):
 			print("[autotest] герой: класс %s, уровень %d, %s %d/%d, здоровье %d, перезарядки %s, дары %s" % [
 				Rules.class_id(game.me), int(game.me.level), Rules.res_kind(game.me), int(game.me.get("res", 0)),

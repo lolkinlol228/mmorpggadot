@@ -275,6 +275,8 @@ func _draw_skill_fx() -> void:
 	var sk: Dictionary = Rules.SKILLS[skill_id]
 	var c: Color = SKILL_COLORS.get(skill_id, SKILL_COLORS.get(str(sk.kind), Color.WHITE))
 	var k := 1.0 - skill_t / 0.5
+	if str(sk.kind) in ["strike", "heal", "buff", "blink"]:
+		return                                          # эти умения рисует skill_fx.gd спрайтами
 	match str(sk.kind):
 		"strike":
 			if float(sk.off) <= 0.0:                    # вокруг себя: вихрь, волна, веер

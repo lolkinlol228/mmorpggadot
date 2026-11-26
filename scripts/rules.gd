@@ -95,7 +95,8 @@ const SKILLS := {
 	"blink": {"name": "Скачок", "icon": Vector2i(14, 3), "cd": 10.0, "cost": 10, "kind": "blink",
 		"desc": "Мгновенный перенос на 90 шагов вперёд"},
 	"meteor": {"name": "Метеор", "icon": Vector2i(2, 4), "cd": 30.0, "cost": 40, "kind": "strike",
-		"off": 70.0, "r": 44.0, "mult": 4.0, "crit": 0.05, "desc": "Камень с неба впереди: 400% урона по площади"},
+		"off": 70.0, "ground": 170.0, "r": 44.0, "mult": 4.0, "crit": 0.05, "delay": 0.55,
+		"desc": "Камень с неба в точку прицела: 400% урона по площади"},
 	# жрец
 	"holy_light": {"name": "Святой свет", "icon": Vector2i(5, 3), "cd": 4.0, "cost": 14, "kind": "heal",
 		"target": "lowest", "base": 25, "spi": 3.0, "radius": 160.0, "desc": "Лечит самого раненого рядом: 25 + Дух×3"},
@@ -113,7 +114,8 @@ const SKILLS := {
 	"hunter_pace": {"name": "Поступь охотника", "icon": Vector2i(13, 3), "cd": 25.0, "cost": 20, "kind": "buff",
 		"buff": "pounce", "dur": 5.0, "allies": 0.0, "desc": "5 сек: скорость +40%, рывки без выносливости"},
 	"arrow_rain": {"name": "Град стрел", "icon": Vector2i(1, 3), "cd": 22.0, "cost": 50, "kind": "strike",
-		"off": 110.0, "r": 50.0, "mult": 2.2, "crit": 0.0, "desc": "Град стрел впереди: 220% урона по площади"},
+		"off": 110.0, "ground": 220.0, "r": 50.0, "mult": 2.2, "crit": 0.0, "delay": 0.35,
+		"desc": "Град стрел в точку прицела: 220% урона по площади"},
 	# разбойник
 	"dirty_trick": {"name": "Подлый приём", "icon": Vector2i(0, 3), "cd": 12.0, "cost": 25, "kind": "buff",
 		"buff": "dirty_trick", "dur": 6.0, "allies": 0.0, "desc": "Следующий удар в течение 6 сек — крит ×3"},
@@ -138,6 +140,26 @@ const SKILLS := {
 # Базовая атака по стилю оружия: перезарядка мс, урон, радиус, шанс крита, дальность (для снарядов — длина полёта).
 const ATTACKS := {"slash": [300, 1.0, 36.0, 0.10, 30.0], "chop": [470, 1.35, 42.0, 0.10, 28.0],
 	"stab": [190, 0.8, 26.0, 0.22, 34.0], "bolt": [520, 0.9, 8.0, 0.08, 180.0], "shot": [460, 1.0, 6.0, 0.12, 230.0]}
+
+
+## Куда бьёт умение-удар. ground — по прицелу (aim — вектор от героя к курсору), не дальше ground;
+## иначе — на off шагов вперёд по направлению.
+func skill_point(sk: Dictionary, origin: Vector2, dir: Vector2, aim: Vector2) -> Vector2:
+	if sk.has("ground") and aim.length() > 1.0:
+		return origin + aim.limit_length(float(sk.ground))
+	return origin + dir * float(sk.get("off", 0.0))
+
+
+## Насколько далеко бьёт умение — для подсказки прицела (круг дальности).
+func skill_reach(sk: Dictionary) -> float:
+	match str(sk.kind):
+		"bolt", "multi":
+			return float(sk.range)
+		"heal":
+			return float(sk.get("radius", 120.0))
+		"strike":
+			return float(sk.get("ground", sk.get("off", 0.0)))
+	return 0.0
 
 
 func race_of(p: Dictionary) -> Dictionary:

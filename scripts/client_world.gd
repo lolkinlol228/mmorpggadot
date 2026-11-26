@@ -41,6 +41,9 @@ func start() -> void:
 	game.interact = Interact.new()
 	game.interact.game = game
 	game.add_child(game.interact)
+	var aim = preload("res://scripts/aim_overlay.gd").new()      # прицел своего героя
+	aim.game = game
+	game.add_child(aim)
 	game.camera = Camera2D.new()
 	game.camera.limit_right = int(game.WORLD_SIZE.x)
 	game.camera.limit_bottom = int(game.WORLD_SIZE.y)

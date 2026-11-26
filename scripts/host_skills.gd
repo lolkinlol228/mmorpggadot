@@ -219,6 +219,19 @@ func _heal(pid: int, amount: int, from_skill: bool = false, caster: int = -1) ->
 	host._all("c_hp", [pid, p.hp, p.max_hp, 0])
 
 
+## Живой союзник (или сам герой) в 24 шагах от точки прицела и в радиусе умения; -1 — нет.
+func _ally_at(point: Vector2, origin: Vector2, radius: float) -> int:
+	var best := -1
+	var best_d := 24.0
+	for pid in host.players:
+		var o: Dictionary = host.players[pid]
+		var d: float = o.pos.distance_to(point)
+		if int(o.hp) > 0 and d < best_d and o.pos.distance_to(origin) <= radius:
+			best = pid
+			best_d = d
+	return best
+
+
 func _allies_near(pos: Vector2, radius: float) -> Array:
 	var out := []
 	for pid in host.players:
@@ -293,11 +306,12 @@ func use(id: String, dir: Vector2) -> void:
 		add_res(p, -cost)
 	var cd := maxf(Gifts.CAPS.cd_mult_min, (1.0 + float(host.gifts.mod(pid, "cd"))) / (1.0 + Rules.stat(p, "spi") * 0.02))
 	p.cds[id] = now_ms() + int(float(Rules.SKILLS[id].cd) * cd * 1000.0)
-	perform(pid, id, dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT)
+	perform(pid, id, dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT, false, dir)
 
 
 ## Выполняет оплаченное умение или бесплатный повтор.
-func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
+## aim — вектор от героя к курсору (для умений по точке и лечения союзника под курсором).
+func perform(pid: int, id: String, dir: Vector2, repeat: bool = false, aim: Vector2 = Vector2.ZERO) -> void:
 	var p: Dictionary = host.players[pid]
 	var sk: Dictionary = Rules.SKILLS[id]
 	match str(sk.kind):
@@ -306,7 +320,13 @@ func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
 			for k in ["slow", "execute", "leech"]:
 				if sk.has(k):
 					opts[k] = sk[k]
-			strike(pid, p.pos + dir * float(sk.off), float(sk.r), float(sk.mult), float(sk.crit), opts)
+			var at := Rules.skill_point(sk, p.pos, dir, aim)
+			if sk.has("delay"):                           # метеор и град стрел падают не сразу
+				get_tree().create_timer(float(sk.delay)).timeout.connect(func():
+					if host.players.has(pid):
+						strike(pid, at, float(sk.r), float(sk.mult), float(sk.crit), opts))
+			else:
+				strike(pid, at, float(sk.r), float(sk.mult), float(sk.crit), opts)
 		"bolt":
 			bolt(pid, dir, float(sk.range), float(sk.mult), float(sk.aoe), float(sk.crit), str(sk.fx), {"skill": true})
 		"multi":
@@ -327,6 +347,10 @@ func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
 				"lowest":
 					var best := pid
 					var worst := 2.0
+					var aimed := _ally_at(p.pos + aim, p.pos, float(sk.get("radius", 120.0)) * host.gifts.factor(pid, "aoe"))
+					if aim.length() > 1.0 and aimed != -1:       # союзник под курсором важнее самого раненого
+						best = aimed
+						worst = -1.0
 					for other in _allies_near(p.pos, float(sk.get("radius", 120.0)) * host.gifts.factor(pid, "aoe")):
 						var o: Dictionary = host.players[other]
 						var ratio := float(o.hp) / maxf(1.0, float(o.max_hp))
@@ -348,7 +372,7 @@ func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
 				p.pos = World.move(p.pos, dir * 5.0)
 			p.moved_at = now_ms()
 			host._to(pid, "c_teleport", [p.pos, true])
-	host._all("c_skill_fx", [pid, id, dir])
+	host._all("c_skill_fx", [pid, id, aim if aim.length() > 1.0 else dir])
 	if not repeat:
 		host.talents.skill(pid, dir)
 		host.gifts.fire(pid, "skill", {"id": id, "dir": dir})

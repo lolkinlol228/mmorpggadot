@@ -17,6 +17,7 @@ var boom := 0.0          # радиус вспышки в конце (огнен
 var t := 0.0
 var dur := 0.2
 var game
+var landed := false
 
 
 func _ready() -> void:
@@ -29,9 +30,10 @@ func _process(delta: float) -> void:
 	if t >= dur + 0.25:
 		queue_free()
 		return
-	if t >= dur and boom > 0.0 and game and game.fx:
-		game.fx.burst(to + Vector2(0, -10), LOOKS[kind][1], 14, false)
-		boom = 0.0
+	if t >= dur and not landed and game and game.client_combat:
+		landed = true
+		game.client_combat.skill_fx.game = game
+		game.client_combat.skill_fx.impact(kind, to, boom)       # взрыв / столп света / искры
 	queue_redraw()
 
 

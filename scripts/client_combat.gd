@@ -4,6 +4,7 @@ extends RefCounted
 const EnemyView := preload("res://scripts/enemy_view.gd")
 
 var game
+var skill_fx := preload("res://scripts/skill_fx.gd").new()
 
 
 func c_parry(pid: int) -> void:
@@ -34,13 +35,14 @@ func c_dash(pid: int) -> void:
 func c_skill_fx(pid: int, id: String, dir: Vector2) -> void:
 	var v = game.player_views.get(pid)
 	if v:
+		skill_fx.game = game
+		skill_fx.skill(v, id, dir)                    # dir — вектор прицела от хоста
+		dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
 		v.skill(id, dir)
 		Sfx.play_at({"heal": "shimmer", "buff": "bell", "blink": "swing", "bolt": "swing", "multi": "swing"}.get(str(Rules.SKILLS[id].kind), "swing"), v.position, game.my_pos)
 		var sk: Dictionary = Rules.SKILLS[id]
-		if sk.kind == "strike" and float(sk.mult) >= 2.0:     # тяжёлые удары поднимают пыль и трясут камеру
+		if sk.kind == "strike" and float(sk.mult) >= 2.0 and not sk.has("ground"):   # пыль от тяжёлого удара
 			game.fx.dust(v.position + dir * float(sk.off), 12)
-			if pid == game.my_id:
-				game.fx.shake = 0.25
 
 
 func c_res(value: int, max_value: int) -> void:
@@ -84,6 +86,8 @@ func c_enemy_hit(eid: int, hp: int, dmg: int, crit: bool) -> void:
 	if v:
 		v.hp = hp
 		v.flash()
+		skill_fx.game = game
+		skill_fx.enemy_hit(v, crit)
 		Sfx.play_at("hit_stone" if v.kind == "golem" else ("crit" if crit else "hit"), v.position, game.my_pos)
 		float_text(v.position + Vector2(0, -30), ("%d!" % dmg) if crit else str(dmg),
 			Color(1, 0.85, 0.2) if crit else Color.WHITE)
@@ -102,12 +106,17 @@ func c_swing(pid: int, dir: Vector2) -> void:
 	var v = game.player_views.get(pid)
 	if v:
 		v.swing(dir)
+		skill_fx.game = game
+		skill_fx.swing(v, dir)
 		Sfx.play_at("swing", v.position, game.my_pos)
 
 
 func c_hp(pid: int, hp: int, max_hp: int, dealt: int) -> void:
 	var v = game.player_views.get(pid)
 	if v:
+		if dealt == 0 and hp > v.hp and v.hp > 0:     # лечение
+			skill_fx.game = game
+			skill_fx.healed(v)
 		v.hp = hp
 		v.max_hp = max_hp
 		if dealt > 0:
