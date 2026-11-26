@@ -14,6 +14,7 @@ const PropsLayer := preload("res://scripts/props_layer.gd")
 const Ambience := preload("res://scripts/ambience.gd")
 const Interact := preload("res://scripts/interact.gd")
 var client_input
+var client_combat
 var interact
 var open_spot := -1
 
@@ -56,6 +57,8 @@ const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot":
 
 
 func _ready() -> void:
+	client_combat = preload("res://scripts/client_combat.gd").new()
+	client_combat.game = self
 	client_input = preload("res://scripts/client_input.gd").new()
 	client_input.game = self
 	randomize()
@@ -179,23 +182,12 @@ func h_parry() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_parry(pid: int) -> void:
-	var v = player_views.get(pid)
-	if v:
-		v.parry()
+	client_combat.c_parry(pid)
 
 ## Удачное парирование: искры, звон, надпись. Себе — сразу снова готово.
 @rpc("authority", "call_remote", "reliable")
 func c_parried(pid: int, enemy_pos: Vector2) -> void:
-	var v = player_views.get(pid)
-	if v == null:
-		return
-	var mid: Vector2 = v.position.lerp(enemy_pos, 0.45) + Vector2(0, -14)
-	fx.burst(mid, Color(1.0, 0.9, 0.55), 18, false)
-	float_text(v.position + Vector2(0, -46), "Парировано!", Color(1.0, 0.9, 0.55))
-	Sfx.play_at("bell", v.position, my_pos)
-	if pid == my_id:
-		parry_ready_at = Time.get_ticks_msec() + 600
-		fx.shake = 0.12
+	client_combat.c_parried(pid, enemy_pos)
 
 
 func move_mult() -> float:
@@ -361,9 +353,7 @@ func h_dash(dir: Vector2) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_dash(pid: int) -> void:
-	var v = player_views.get(pid)
-	if v:
-		v.dash()
+	client_combat.c_dash(pid)
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_chat(text: String) -> void:
@@ -379,46 +369,22 @@ func h_stat(s: String) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_skill_fx(pid: int, id: String, dir: Vector2) -> void:
-	var v = player_views.get(pid)
-	if v:
-		v.skill(id, dir)
-		Sfx.play_at({"heal": "shimmer", "buff": "bell", "blink": "swing", "bolt": "swing", "multi": "swing"}.get(str(Rules.SKILLS[id].kind), "swing"), v.position, my_pos)
-		var sk: Dictionary = Rules.SKILLS[id]
-		if sk.kind == "strike" and float(sk.mult) >= 2.0:     # тяжёлые удары поднимают пыль и трясут камеру
-			fx.dust(v.position + dir * float(sk.off), 12)
-			if pid == my_id:
-				fx.shake = 0.25
+	client_combat.c_skill_fx(pid, id, dir)
 
 ## Ресурс класса (мана / ярость / энергия) — шлётся чаще, чем всё остальное о себе.
 @rpc("authority", "call_remote", "unreliable_ordered")
 func c_res(value: int, max_value: int) -> void:
-	if me.is_empty():
-		return
-	me.res = value
-	me.res_max = max_value
-	ui.hud.set_res(me)
+	client_combat.c_res(value, max_value)
 
 
 ## Видимый снаряд (стрела, шар, луч). Попадание уже посчитано хостом.
 @rpc("authority", "call_remote", "reliable")
 func c_shot(from: Vector2, to: Vector2, kind: String, boom: float) -> void:
-	var pr = preload("res://scripts/projectile.gd").new()
-	pr.from = from
-	pr.to = to
-	pr.kind = kind
-	pr.boom = boom
-	pr.game = self
-	add_child(pr)
+	client_combat.c_shot(from, to, kind, boom)
 
 @rpc("authority", "call_remote", "reliable")
 func c_levelup(pid: int, level: int) -> void:
-	var v = player_views.get(pid)
-	if v:
-		fx.burst(v.position + Vector2(0, -14), Color(1, 0.85, 0.4), 40, true)
-		float_text(v.position + Vector2(0, -52), "УРОВЕНЬ %d!" % level, Color(1, 0.85, 0.4))
-		ui.add_feed("%s достиг %d уровня!" % [v.pname, level], Color(1, 0.85, 0.4))
-	if pid == my_id:
-		Sfx.fanfare(2)
+	client_combat.c_levelup(pid, level)
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_eco(op: String, arg: String) -> void:
@@ -498,66 +464,32 @@ func c_state(ps: Array, es: Array) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_enemy_spawn(d: Array) -> void:
-	var v := EnemyView.new()
-	v.setup(d[1], d[2], d[3], d[4])
-	v.elite = d.size() > 5 and bool(d[5])
-	entities.add_child(v)
-	enemy_views[d[0]] = v
+	client_combat.c_enemy_spawn(d)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_enemy_hit(eid: int, hp: int, dmg: int, crit: bool) -> void:
-	var v = enemy_views.get(eid)
-	if v:
-		v.hp = hp
-		v.flash()
-		Sfx.play_at("hit_stone" if v.kind == "golem" else ("crit" if crit else "hit"), v.position, my_pos)
-		float_text(v.position + Vector2(0, -30), ("%d!" % dmg) if crit else str(dmg),
-			Color(1, 0.85, 0.2) if crit else Color.WHITE)
+	client_combat.c_enemy_hit(eid, hp, dmg, crit)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_enemy_died(eid: int) -> void:
-	var v = enemy_views.get(eid)
-	if v:
-		fx.burst(v.position, v.data.color, 24, false)
-		Sfx.play_at("enemy_die", v.position, my_pos)
-		v.queue_free()
-		enemy_views.erase(eid)
+	client_combat.c_enemy_died(eid)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_swing(pid: int, dir: Vector2) -> void:
-	var v = player_views.get(pid)
-	if v:
-		v.swing(dir)
-		Sfx.play_at("swing", v.position, my_pos)
+	client_combat.c_swing(pid, dir)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_hp(pid: int, hp: int, max_hp: int, dealt: int) -> void:
-	var v = player_views.get(pid)
-	if v:
-		v.hp = hp
-		v.max_hp = max_hp
-		if dealt > 0:
-			v.hurt()
-			float_text(v.position + Vector2(0, -44), "-%d" % dealt, Color(1, 0.35, 0.3))
-	if pid == my_id and not me.is_empty():
-		me.hp = hp
-		me.max_hp = max_hp
-		ui.refresh_hp()
-		if dealt > 0:
-			fx.hurt()
-			Sfx.play("hurt")
+	client_combat.c_hp(pid, hp, max_hp, dealt)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_teleport(pos: Vector2, blink: bool) -> void:
-	if blink:
-		fx.burst(my_pos + Vector2(0, -12), Color(0.6, 0.75, 1.0), 14, false)
-		fx.burst(pos + Vector2(0, -12), Color(0.8, 0.9, 1.0), 14, false)
-	my_pos = pos
+	client_combat.c_teleport(pos, blink)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -638,39 +570,25 @@ func c_trade_closed(msg: String) -> void:
 
 
 func float_text(pos: Vector2, text: String, color: Color) -> void:
-	var l := Label.new()
-	l.text = text
-	l.z_index = 20
-	l.position = pos + Vector2(-30, 0)
-	l.size = Vector2(60, 12)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 9)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_shadow_color", Color.BLACK)
-	add_child(l)
-	var tw := l.create_tween()
-	tw.tween_property(l, "position:y", pos.y - 20, 0.7)
-	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.7)
-	tw.tween_callback(l.queue_free)
+	client_combat.float_text(pos, text, color)
 
 
 ## Хост обновил запас щита владельца.
 @rpc("authority", "call_remote", "reliable")
 func c_shield(amount: int) -> void:
-	me.shield = amount
-	ui.refresh_hp()
+	client_combat.c_shield(amount)
 
 
 ## Хост обновил параметры движения владельца.
 @rpc("authority", "call_remote", "reliable")
 func c_gift_motion(values: Dictionary) -> void:
-	me.gift_motion = values
+	client_combat.c_gift_motion(values)
 
 
 ## Дар сбросил перезарядку удачного парирования.
 @rpc("authority", "call_remote", "reliable")
 func c_parry_reset() -> void:
-	parry_ready_at = 0
+	client_combat.c_parry_reset()
 
 
 var stun_local_until := 0
@@ -714,16 +632,12 @@ func c_world_pulse(pos: Vector2, radius: float, color: Color) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_enemy_elite(eid: int, hp: int, maximum: int) -> void:
-	var view = enemy_views.get(eid)
-	if view:
-		view.hp = hp
-		view.max_hp = maximum
-		view.elite = true
+	client_combat.c_enemy_elite(eid, hp, maximum)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_dash_reset() -> void:
-	dash_charges.used.clear()
+	client_combat.c_dash_reset()
 
 
 ## Показывает полупрозрачный силуэт на месте рывка.
