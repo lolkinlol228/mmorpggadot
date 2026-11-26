@@ -220,7 +220,7 @@ func _hurt_player(pid: int, dmg: int, eid: int = -1, kind: String = "melee") -> 
 		return                                              # божественный щит
 	var ctx := {"eid": eid, "enemy": enemies.get(eid, {}), "damage": dmg}
 	gifts.combat(pid, ctx)
-	var dodge := clampf(gifts.mod(pid, "dodge", ctx), 0.0, Rules.Gifts.CAPS.dodge)
+	var dodge := clampf(gifts.mod(pid, "dodge", ctx) + Rules.dodge_bonus(p), 0.0, Rules.Gifts.CAPS.dodge)
 	if randf() < dodge:
 		gifts.fire(pid, "dodge", ctx)
 		return

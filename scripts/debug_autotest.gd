@@ -213,13 +213,18 @@ func _hero_steps() -> void:
 			for pid in game.host.players:
 				game.host.players[pid].res = float(game.host.players[pid].res_max)
 		if t > 16.6 and _once("stats"):
-			game.add_stat("str")
-			game.add_stat("vit")
+			for st in ["str", "vit", "int", "def", "luk", "spd"]:
+				game.add_stat(st)
 			game.ui.shop.close_all()
 			game.ui.inv_panel.hide()
 			game.ui.charwin.toggle()
 		if t > 16.9 and _once("hover_crit"):          # подсказка по наведению: последний ряд окна героя
 			_hover(game.ui.charwin.cells["xp"][1])
+		if t > 17.4 and _once("log_stats"):
+			var line := PackedStringArray()
+			for st in Rules.STATS:
+				line.append("%s=%d" % [st, Rules.stat(game.me, st)])
+			print("[autotest] характеристики: ", " ".join(line), " очков ", game.me.points, " броня ", Rules.armor(game.me), " крит ×", Rules.crit_mult(game.me))
 		if t > 17.5 and _once("shot_hero"):
 			_shot("7_hero")
 			game.ui.charwin.toggle()

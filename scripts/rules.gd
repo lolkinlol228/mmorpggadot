@@ -4,12 +4,20 @@ const Gifts := preload("res://scripts/gifts.gd")
 ## Правила развития героя: характеристики, расы, классы, умения, ресурсы (мана / ярость / энергия),
 ## штраф за чужую экипировку. Хост считает по этим формулам; клиент — только показывает.
 
-const STATS := ["str", "agi", "vit", "spi"]
-const STAT_NAMES := {"str": "Сила", "agi": "Ловкость", "vit": "Живучесть", "spi": "Дух"}
-const STAT_HELP := {"str": "+0,6 к урону за очко", "agi": "криты и скорость атаки",
-	"vit": "+6 здоровья, быстрее выносливость", "spi": "мана, короче перезарядка умений, сильнее лечение"}
+const STATS := ["str", "agi", "vit", "spi", "int", "def", "luk", "spd"]
+const STAT_NAMES := {"str": "Сила", "agi": "Ловкость", "vit": "Живучесть", "spi": "Дух",
+	"int": "Интеллект", "def": "Стойкость", "luk": "Удача", "spd": "Быстрота"}
+const STAT_HELP := {"str": "+0,6 к урону за очко", "agi": "+0,6% крита и +1,2% скорости атаки за очко",
+	"vit": "+6 здоровья и +3% восстановления выносливости за очко",
+	"spi": "+6 маны, перезарядка умений −2%, лечение +4% за очко",
+	"int": "умения бьют сильнее: +2% за очко", "def": "+1 броня за очко",
+	"luk": "+0,3% крита, +2% силы крита, +1% к редким находкам за очко",
+	"spd": "+0,6% скорости бега и +0,4% уклонения за очко"}
+## Новые характеристики считаются от вложенных очков (база 5 у них ничего не даёт), чтобы не менять баланс старых героев.
+const STAT_PER := {"int_skill": 0.02, "def_armor": 1.0, "luk_crit": 0.003, "luk_crit_dmg": 0.02, "luk_find": 0.01,
+	"spd_speed": 0.006, "spd_dodge": 0.004}
 const BASE_STAT := 5
-const POINTS_PER_LEVEL := 3
+const POINTS_PER_LEVEL := 4
 const XP_FOR_KILL := {"undead": 27, "slime": 8, "wolf": 18, "golem": 250}
 const SHARE_XP_RADIUS := 320.0      # опыт получают все союзники рядом — играть вместе выгодно
 const OFF_CLASS := 0.5              # чужое оружие и броня дают только половину характеристик
@@ -26,11 +34,11 @@ const PARRY := {"window": 0.3, "cd": 3.0, "cost": 20.0, "stun": 1.0, "riposte": 
 const RACES := {
 	"human": {"name": "Человек", "stats": {"str": 1, "agi": 1, "vit": 1, "spi": 1}, "passive": "Опыт +10%", "xp_mult": 1.1},
 	"elf": {"name": "Эльф", "stats": {"agi": 2, "spi": 2}, "passive": "Шанс крита +5%", "crit": 0.05},
-	"dwarf": {"name": "Дварф", "stats": {"vit": 3, "str": 1}, "passive": "Броня +3", "armor": 3},
+	"dwarf": {"name": "Дварф", "stats": {"vit": 3, "str": 1, "def": 1}, "passive": "Броня +3", "armor": 3},
 	"orc": {"name": "Орк", "stats": {"str": 3, "vit": 1}, "passive": "Урон +10%", "dmg_mult": 1.1},
 	"undead": {"name": "Нежить", "stats": {"vit": 2, "spi": 2}, "passive": "Регенерация здоровья ×2", "regen_mult": 2.0},
-	"felin": {"name": "Кошколюд", "stats": {"agi": 3, "str": 1}, "passive": "Скорость бега +10%", "speed_mult": 1.1},
-	"goblin": {"name": "Гоблин", "stats": {"agi": 2, "spi": 2}, "passive": "Монет с врагов +30%", "coin_mult": 1.3},
+	"felin": {"name": "Кошколюд", "stats": {"agi": 3, "str": 1, "spd": 1}, "passive": "Скорость бега +10%", "speed_mult": 1.1},
+	"goblin": {"name": "Гоблин", "stats": {"agi": 2, "spi": 2, "luk": 2}, "passive": "Монет с врагов +30%", "coin_mult": 1.3},
 }
 
 const RES_NAMES := {"mana": "Мана", "rage": "Ярость", "energy": "Энергия"}
@@ -39,22 +47,22 @@ const RES_COLORS := {"mana": Color(0.35, 0.55, 1.0), "rage": Color(0.9, 0.25, 0.
 # weapons — своё оружие (умения класса работают только с ним), armor — свой тип брони.
 const CLASSES := {
 	"warrior": {"name": "Воин", "role": "Танк: принимает удары на себя, копит ярость в бою",
-		"weapons": ["sword", "axe"], "armor": ["plate"], "res": "rage", "stats": {"str": 2, "vit": 2}, "hp_mult": 1.15,
+		"weapons": ["sword", "axe"], "armor": ["plate"], "res": "rage", "stats": {"str": 2, "vit": 2, "def": 2}, "hp_mult": 1.15,
 		"skills": ["smash", "whirl", "warcry", "bulwark"], "kit": ["sword", "armor"]},
 	"mage": {"name": "Маг", "role": "Урон по площади и замедление издалека",
-		"weapons": ["staff"], "armor": ["cloth"], "res": "mana", "stats": {"spi": 3, "agi": 1}, "hp_mult": 0.9,
+		"weapons": ["staff"], "armor": ["cloth"], "res": "mana", "stats": {"spi": 3, "agi": 1, "int": 3}, "hp_mult": 0.9,
 		"skills": ["fireball", "frost_nova", "blink", "meteor"], "kit": ["staff", "robe"]},
 	"priest": {"name": "Жрец", "role": "Лечит и защищает союзников",
-		"weapons": ["wand", "staff"], "armor": ["cloth"], "res": "mana", "stats": {"spi": 3, "vit": 1}, "hp_mult": 0.95,
+		"weapons": ["wand", "staff"], "armor": ["cloth"], "res": "mana", "stats": {"spi": 3, "vit": 1, "int": 1, "def": 1}, "hp_mult": 0.95,
 		"skills": ["holy_light", "smite", "barrier", "renew"], "kit": ["wand", "robe"]},
 	"ranger": {"name": "Следопыт", "role": "Урон из лука с дальней дистанции",
-		"weapons": ["bow"], "armor": ["leather"], "res": "energy", "stats": {"agi": 3, "str": 1}, "hp_mult": 1.0,
+		"weapons": ["bow"], "armor": ["leather"], "res": "energy", "stats": {"agi": 3, "str": 1, "spd": 2}, "hp_mult": 1.0,
 		"skills": ["power_shot", "volley", "hunter_pace", "arrow_rain"], "kit": ["bow", "jerkin"]},
 	"rogue": {"name": "Разбойник", "role": "Криты, скорость и добивание",
-		"weapons": ["dagger", "sword"], "armor": ["leather"], "res": "energy", "stats": {"agi": 3, "str": 1}, "hp_mult": 0.95,
+		"weapons": ["dagger", "sword"], "armor": ["leather"], "res": "energy", "stats": {"agi": 3, "str": 1, "luk": 2}, "hp_mult": 0.95,
 		"skills": ["dirty_trick", "pounce", "blade_fan", "assassinate"], "kit": ["dagger", "jerkin"]},
 	"paladin": {"name": "Паладин", "role": "Латы и молот: держит удар и лечит",
-		"weapons": ["hammer", "sword"], "armor": ["plate"], "res": "mana", "stats": {"str": 2, "spi": 2}, "hp_mult": 1.1,
+		"weapons": ["hammer", "sword"], "armor": ["plate"], "res": "mana", "stats": {"str": 2, "spi": 2, "def": 1, "int": 1}, "hp_mult": 1.1,
 		"skills": ["holy_strike", "lay_hands", "valor_aura", "divine_shield"], "kit": ["hammer", "armor"]},
 }
 
@@ -243,7 +251,7 @@ func crit_chance(p: Dictionary) -> float:
 
 ## Шанс крита до даров и потолка.
 func base_crit_chance(p: Dictionary) -> float:
-	return stat(p, "agi") * 0.006 + float(race_of(p).get("crit", 0.0))
+	return stat(p, "agi") * 0.006 + float(race_of(p).get("crit", 0.0)) + extra(p, "luk") * STAT_PER.luk_crit
 
 
 ## Делитель перезарядки атаки.
@@ -254,7 +262,7 @@ func attack_speed(p: Dictionary, bonus: float = INF) -> float:
 func armor(p: Dictionary) -> int:
 	if Gifts.has_flag(p, "no_armor"):
 		return 0
-	return int((_gear_sum(p, "armor") + int(race_of(p).get("armor", 0))) * Gifts.factor(p, "armor"))
+	return int((_gear_sum(p, "armor") + int(race_of(p).get("armor", 0)) + extra(p, "def") * STAT_PER.def_armor) * Gifts.factor(p, "armor"))
 
 
 func cd_mult(p: Dictionary) -> float:
@@ -266,7 +274,32 @@ func heal_power(p: Dictionary) -> float:
 
 
 func speed_mult(p: Dictionary) -> float:
-	return minf(1.0 + Gifts.CAPS.speed, float(race_of(p).get("speed_mult", 1.0)) * Gifts.factor(p, "speed"))
+	return minf(1.0 + Gifts.CAPS.speed, float(race_of(p).get("speed_mult", 1.0)) * Gifts.factor(p, "speed") * (1.0 + extra(p, "spd") * STAT_PER.spd_speed))
+
+
+## Очки новой характеристики сверх базы (вложенные + раса + класс).
+func extra(p: Dictionary, s: String) -> int:
+	return maxi(0, stat(p, s) - BASE_STAT)
+
+
+## Прибавка к урону умений от Интеллекта.
+func skill_power(p: Dictionary) -> float:
+	return extra(p, "int") * STAT_PER.int_skill
+
+
+## Множитель крита до даров: ×2 и Удача.
+func crit_mult(p: Dictionary) -> float:
+	return 2.0 + extra(p, "luk") * STAT_PER.luk_crit_dmg
+
+
+## Уклонение от Быстроты (складывается с дарами, общий потолок Gifts.CAPS.dodge).
+func dodge_bonus(p: Dictionary) -> float:
+	return extra(p, "spd") * STAT_PER.spd_dodge
+
+
+## Сдвиг к редким находкам от Удачи (складывается с дарами, потолок Gifts.CAPS.rare_find).
+func luck_find(p: Dictionary) -> float:
+	return extra(p, "luk") * STAT_PER.luk_find
 
 
 func stamina_regen(p: Dictionary) -> float:

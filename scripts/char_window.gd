@@ -1,12 +1,13 @@
 extends Node
 ## Окно персонажа (C): компактно, иконками. Название и пояснение каждой цифры — во всплывающей подсказке.
-## Сверху класс/раса/уровень и опыт, затем дары, 4 характеристики с «+», ниже сетка итоговых параметров.
+## Сверху класс/раса/уровень и опыт, затем дары, 8 характеристик с «+», ниже сетка итоговых параметров.
 
 const Kit := preload("res://scripts/ui_kit.gd")
 const Gifts := preload("res://scripts/gifts.gd")
 
 const W := 214.0
-const STAT_ICONS := {"str": Vector2i(4, 1), "agi": Vector2i(12, 3), "vit": Vector2i(0, 1), "spi": Vector2i(3, 1)}
+const STAT_ICONS := {"str": Vector2i(4, 1), "agi": Vector2i(12, 3), "vit": Vector2i(0, 1), "spi": Vector2i(0, 21),
+	"int": Vector2i(3, 1), "def": Vector2i(2, 6), "luk": Vector2i(13, 13), "spd": Vector2i(13, 3)}
 const RES_ICONS := {"mana": Vector2i(1, 18), "rage": Vector2i(0, 18), "energy": Vector2i(3, 18)}
 
 var game
@@ -67,7 +68,7 @@ func build(parent: Control) -> void:
 	body.add_child(gifts_box)
 	body.add_child(Kit.divider())
 
-	# 4 характеристики: 2×2, иконка · число · «+»
+	# 8 характеристик: 2×4, иконка · число · «+»
 	var sh := HBoxContainer.new()
 	body.add_child(sh)
 	points_label = Kit.label("", 9, Kit.GOLD)
@@ -123,6 +124,7 @@ func _derived_defs() -> Array:
 		["res", Vector2i(1, 18), "Ресурс", "максимум ресурса класса"],
 		["res_regen", Vector2i(10, 0), "Восстановление ресурса", "в секунду"],
 		["dmg", Vector2i(1, 5), "Урон", "урон обычной атаки"],
+		["skill", Vector2i(8, 0), "Сила умений", "прибавка к урону умений (Интеллект и дары)"],
 		["crit", Vector2i(11, 3), "Крит", "шанс критического удара (потолок %d%%)" % int(Gifts.CAPS.crit * 100)],
 		["crit_dmg", Vector2i(9, 0), "Сила крита", "множитель урона крита"],
 		["aspd", Vector2i(9, 5), "Скорость атаки", "прибавка к скорости атаки"],
@@ -135,6 +137,7 @@ func _derived_defs() -> Array:
 		["stam", Vector2i(3, 9), "Выносливость", "скорость восстановления выносливости"],
 		["thorns", Vector2i(9, 8), "Шипы", "доля урона, возвращаемая врагу"],
 		["loot", Vector2i(11, 11), "Добыча", "шанс выпадения вещей"],
+		["find", Vector2i(15, 12), "Редкие находки", "сдвиг выпадения к редким вещам (Удача и дары, потолок %d%%)" % int(Gifts.CAPS.rare_find * 100)],
 		["coin", Vector2i(6, 12), "Монеты", "монет с врагов"],
 		["xp", Vector2i(5, 0), "Опыт", "опыта за убийства"],
 	]
@@ -213,11 +216,12 @@ func refresh(me: Dictionary) -> void:
 		"res": str(int(me.get("res_max", Rules.res_max(me)))),
 		"res_regen": ("%.1f" % Rules.res_regen(me)) if rk != "rage" else "бой",
 		"dmg": "%.0f" % Rules.damage(me),
+		"skill": _signed(Rules.skill_power(me) + Gifts.mod(me, "skill_dmg")),
 		"crit": _pct(Rules.crit_chance(me)),
-		"crit_dmg": "×%.1f" % (2.0 * Gifts.factor(me, "crit_dmg")),
+		"crit_dmg": "×%.2f" % (Rules.crit_mult(me) * Gifts.factor(me, "crit_dmg")),
 		"aspd": _signed(Rules.attack_speed(me) - 1.0),
 		"armor": str(Rules.armor(me)),
-		"dodge": _pct(clampf(Gifts.mod(me, "dodge"), 0.0, Gifts.CAPS.dodge)),
+		"dodge": _pct(clampf(Gifts.mod(me, "dodge") + Rules.dodge_bonus(me), 0.0, Gifts.CAPS.dodge)),
 		"cd": "−" + _pct(1.0 - Rules.cd_mult(me)),
 		"heal": _signed(Rules.heal_power(me) - 1.0),
 		"leech": _pct(clampf(Gifts.mod(me, "lifesteal"), 0.0, Gifts.CAPS.lifesteal)),
@@ -225,6 +229,7 @@ func refresh(me: Dictionary) -> void:
 		"stam": "×%.2f" % Rules.stamina_regen(me),
 		"thorns": _pct(clampf(Gifts.mod(me, "thorns"), 0.0, Gifts.CAPS.thorns)),
 		"loot": "×%.2f" % Gifts.factor(me, "loot"),
+		"find": _signed(minf(Gifts.CAPS.rare_find, Gifts.mod(me, "rare_find") + Rules.luck_find(me))),
 		"coin": "×%.2f" % (Gifts.factor(me, "coin") * float(r.get("coin_mult", 1.0))),
 		"xp": "×%.2f" % Gifts.factor(me, "xp"),
 	}

@@ -361,7 +361,7 @@ func attack_factor(pid: int, eid: int, skill: bool, ctx: Dictionary) -> float:
 	var p: Dictionary = host.players[pid]
 	var multiplier := 1.0 + mod(pid, "dmg", ctx) + buff_value(p, "dmg") + buff_value(p, "stack_dmg")
 	if skill:
-		multiplier += mod(pid, "skill_dmg", ctx)
+		multiplier += mod(pid, "skill_dmg", ctx) + Rules.skill_power(p)
 		if Gifts.has_flag(p, "mana_scaling") and Rules.res_kind(p) == "mana":
 			multiplier += floorf(10.0 * float(p.res) / maxf(1.0, float(p.res_max))) * 0.01
 	if Gifts.has_flag(p, "berserk"):

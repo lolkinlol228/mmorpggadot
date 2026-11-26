@@ -111,7 +111,7 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 		var hits: Dictionary = p.get_or_add("gift_first", {})
 		crit = crit or not hits.has(eid)
 		hits[eid] = true
-	var cmult := 2.0 * float(gifts.factor(pid, "crit_dmg", ctx))
+	var cmult := Rules.crit_mult(p) * float(gifts.factor(pid, "crit_dmg", ctx))
 	if has_buff(p, "dirty_trick"):                   # подлый приём: гарантированный крит ×3
 		crit = true
 		cmult += float(p.get("gift_buff_power", {}).get("dirty_trick", 1.0))

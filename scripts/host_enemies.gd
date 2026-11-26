@@ -79,6 +79,7 @@ func _kill(eid: int, killer: int) -> void:
 		loot_mult = host.gifts.factor(killer, "loot", ctx)
 		for key in ["rare_find", "mega_rare", "mythic_find"]:
 			drop_mods[key] = host.gifts.factor(killer, key, ctx) - 1.0
+		drop_mods.rare_find = minf(Rules.Gifts.CAPS.rare_find, float(drop_mods.rare_find) + Rules.luck_find(p))
 	host.skills.on_kill(killer, e.kind, e.pos, ctx)
 	host.drop(Items.make_coins(maxi(1, int(ctx.coins * minf(1.0 + Rules.Gifts.CAPS.coin, ctx.coin_mult)))), e.pos + Vector2(randf_range(-12, 12), randf_range(-8, 8)))
 	var drops := Items.BOSS_DROPS if boss else (1 if randf() < Items.MOB_DROP_CHANCE * loot_mult else 0)
