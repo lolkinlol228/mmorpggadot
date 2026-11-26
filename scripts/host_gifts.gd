@@ -75,7 +75,9 @@ func now() -> int:
 
 ## Доля оставшегося здоровья.
 func ratio(entity: Dictionary) -> float:
-	return float(entity.hp) / maxf(1.0, float(entity.max_hp))
+	if not entity.has("hp"):          # игрок уже вышел или враг удалён
+		return 1.0
+	return float(entity.hp) / maxf(1.0, float(entity.get("max_hp", entity.hp)))
 
 
 ## Живые враги в радиусе.
