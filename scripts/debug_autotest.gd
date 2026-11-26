@@ -13,6 +13,17 @@ var confirmed_at := -1.0
 var adventure_test := OS.get_cmdline_user_args().has("--adventure-test")
 
 
+## Наводит мышь на элемент интерфейса (два движения, чтобы запустился таймер подсказки).
+func _hover(ctl: Control) -> void:
+	var at: Vector2 = game.get_viewport().get_final_transform() * ctl.get_global_rect().get_center()
+	for dx in [0.0, 1.0]:
+		var ev := InputEventMouseMotion.new()
+		ev.position = at + Vector2(dx, 0)
+		ev.global_position = ev.position
+		ev.relative = Vector2(1, 0)
+		Input.parse_input_event(ev)
+
+
 func _once(key: String) -> bool:
 	if done.has(key):
 		return false
@@ -205,6 +216,8 @@ func _hero_steps() -> void:
 			game.ui.shop.close_all()
 			game.ui.inv_panel.hide()
 			game.ui.charwin.toggle()
+		if t > 16.9 and _once("hover_crit"):          # подсказка по наведению на иконку параметра
+			_hover(game.ui.charwin.cells["crit"][1])
 		if t > 17.5 and _once("shot_hero"):
 			_shot("7_hero")
 			game.ui.charwin.toggle()

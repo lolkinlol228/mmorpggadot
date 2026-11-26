@@ -74,14 +74,14 @@ func _build_portrait() -> void:
 	bar.patch_margin_right = 4
 	bar.patch_margin_top = 3
 	bar.patch_margin_bottom = 3
-	bar.custom_minimum_size = Vector2(110, 11)
+	bar.custom_minimum_size = Vector2(110, 14)
 	v.add_child(bar)
 	hp_fill = TextureRect.new()
 	hp_fill.texture = Kit.tex("bar_hp")
 	hp_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	hp_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	hp_fill.position = Vector2(2, 3)
-	hp_fill.size = Vector2(106, 5)
+	hp_fill.size = Vector2(106, 8)
 	bar.add_child(hp_fill)
 	shield_fill = ColorRect.new()
 	shield_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -111,14 +111,20 @@ func _build_portrait() -> void:
 	xp_fill.color = Color(0.5, 0.6, 1.0)
 	xp_fill.size = Vector2(0, 2)
 	xp_bg.add_child(xp_fill)
+	var lvl_bg := ColorRect.new()                     # значок уровня в углу портрета, на тёмной подложке
+	lvl_bg.color = Color(0.06, 0.05, 0.08, 0.92)
+	lvl_bg.position = Vector2(2, 29)
+	lvl_bg.size = Vector2(15, 9)
+	lvl_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(lvl_bg)
 	lvl_label = Kit.label("1", 9, Color.WHITE)
-	lvl_label.position = Vector2(1, 28)
-	lvl_label.size = Vector2(12, 10)
+	lvl_label.position = Vector2(2, 27)
+	lvl_label.size = Vector2(15, 10)
 	lvl_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	frame.add_child(lvl_label)
 	hp_text = Kit.label("", 9)
-	hp_text.position = Vector2(0, -3)
-	hp_text.size = Vector2(110, 11)
+	hp_text.position = Vector2(0, 2)              # шрифт в silver_ui.tres центрирован: текст по центру полоски
+	hp_text.size = Vector2(110, 10)
 	hp_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bar.add_child(hp_text)
 	var gh := HBoxContainer.new()                     # кошелёк: платина, золото, серебро, медь

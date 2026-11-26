@@ -20,8 +20,8 @@ func _ready() -> void:
 	flash.color = Color(1, 1, 1, 0)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(flash)
-	banner = _big_label(18, 92)
-	sub = _big_label(9, 116)
+	banner = _big_label(18, 74)            # выше героя: не наезжает на подсказки [E] и имена
+	sub = _big_label(9, 98)
 
 
 func _big_label(size: int, y: float) -> Label:

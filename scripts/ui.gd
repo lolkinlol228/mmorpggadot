@@ -134,7 +134,7 @@ func _build_inventory() -> void:
 	inv_panel.anchor_right = 1.0
 	inv_panel.offset_left = -232
 	inv_panel.offset_right = -6
-	inv_panel.offset_top = 92
+	inv_panel.offset_top = 6                     # поверх мини-карты: иначе низ окна уходил за экран и закрывал умения
 	inv_panel.visible = false
 	root.add_child(inv_panel)
 	var top := HBoxContainer.new()
@@ -166,7 +166,7 @@ func _build_inventory() -> void:
 	body.add_child(grid)
 	inv_grid = grid
 	_fill_inv_slots(Items.MAX_INV)
-	var hint := Kit.label("клик — надеть / выпить  ·  у хранилища — сдать  ·  у торговки — продать", 9, Kit.DIM)
+	var hint := Kit.label("клик: надеть · у хранилища сдать · у торговки продать", 9, Kit.DIM)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.add_child(hint)
 

@@ -56,8 +56,8 @@ func build(parent: Control) -> void:
 	xp_fill.size = Vector2(0, 8)
 	xp_bg.add_child(xp_fill)
 	xp_label = Kit.label("", 9)
-	xp_label.size = Vector2(W - 16, 8)
-	xp_label.position = Vector2(0, -3)
+	xp_label.size = Vector2(W - 16, 10)
+	xp_label.position = Vector2(0, -1)
 	xp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	xp_bg.add_child(xp_label)
 

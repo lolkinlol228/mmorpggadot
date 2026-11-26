@@ -73,13 +73,13 @@ func _rebuild(me: Dictionary) -> void:
 		shade.size = Vector2(24, 0)
 		shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		s.add_child(shade)
-		var timer := Kit.label("", 9, Color.WHITE)
-		timer.position = Vector2(0, 8)
-		timer.size = Vector2(30, 10)
+		var timer := Kit.label("", 18, Color.WHITE)       # крупная цифра перезарядки по центру ячейки
+		timer.position = Vector2(0, 5)
+		timer.size = Vector2(30, 20)
 		timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s.add_child(timer)
 		var lock := Kit.label("ур.%d" % Rules.skill_level(me, id), 9, Kit.DIM)
-		lock.position = Vector2(0, 8)
+		lock.position = Vector2(0, 10)
 		lock.size = Vector2(30, 10)
 		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s.add_child(lock)
