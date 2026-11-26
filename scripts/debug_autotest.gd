@@ -10,6 +10,8 @@ var t := 0.0
 var done := {}
 var offered := false
 var confirmed_at := -1.0
+var market_test := OS.get_cmdline_user_args().has("--market-test")
+var market_runner
 var adventure_test := OS.get_cmdline_user_args().has("--adventure-test")
 
 
@@ -45,6 +47,14 @@ func _guest_id() -> int:
 	return -1
 
 
+## Подключает отдельный сценарий рынка только по явному флагу теста.
+func _ready() -> void:
+	if market_test:
+		market_runner = load("res://scripts/debug_market_test.gd").new()
+		market_runner.game = game
+		market_runner.tester = self
+
+
 func _process(delta: float) -> void:
 	t += delta
 	if game.is_host:
@@ -55,7 +65,9 @@ func _process(delta: float) -> void:
 	_hero_steps()
 	if adventure_test:
 		_adventure_steps()
-	if t > (44.0 if adventure_test else 22.0) and _once("quit"):
+	if market_test:
+		market_runner.step(t)
+	if t > (44.0 if adventure_test else (36.0 if market_test else 22.0)) and _once("quit"):
 		print("[autotest] %s: кошелёк %s, в хранилище %d" % [Net.player_name, Items.format_coins(int(game.me.coins)), game.me.get("bank", []).size()])
 		print("[autotest] %s: предметов %d, в сумке: %s" % [Net.player_name, game.me.inv.size(),
 			", ".join(game.me.inv.map(func(it): return Items.display_name(it)))])

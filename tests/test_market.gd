@@ -256,6 +256,50 @@ func disk_failure() -> void:
 	act(1, "post", {"uid": sword.uid, "price": 1000})
 	check(market.lots.is_empty() and host.players[1].coins == 10000 and host.players[1].inv[0] == sword, "Сбой записи отменяет размещение и залог")
 	market.world_path = saved_path
+	act(1, "post", {"uid": sword.uid, "price": 1000})
+	var id: String = market.lots.keys()[0]
+	var before: Dictionary = market.snapshot()
+	market.world_path = "user://missing-market-%d/world.json" % Time.get_ticks_usec()
+	act(2, "buy", {"id": id})
+	check(host.players[2].coins == 10000 and host.players[2].inv.is_empty() and market.snapshot() == before, "Сбой записи отменяет покупку и выплату")
+	act(1, "cancel", {"id": id})
+	check(host.players[1].inv.is_empty() and market.lots.has(id), "Сбой записи отменяет снятие")
+	market.payouts["Продавец"] = 950
+	market.returns["Продавец"] = [item()]
+	before = market.snapshot()
+	act(1, "collect")
+	check(host.players[1].coins == 9980 and host.players[1].inv.is_empty() and market.snapshot() == before, "Сбой записи отменяет получение монет и возвратов")
+	market.lots[id].posted_at = market.now() - market.LIFETIME
+	before = market.snapshot()
+	check(not market.expire() and market.snapshot() == before, "Сбой записи не теряет истекающий лот")
+	market.world_path = saved_path
+	market.persist()
+
+
+## Кошелёк выплат сохраняет непоместившуюся часть и состояние переживает обновление serial.
+func persistence() -> void:
+	reset()
+	var sword := item()
+	host.players[1].inv.append(sword)
+	act(1, "post", {"uid": sword.uid, "price": 1000})
+	var id: String = market.lots.keys()[0]
+	var save := root.get_node("Save")
+	save.store_world({"serial": test_serial + 1}, path)
+	market.load_state()
+	check(market.lots.has(id) and market.lots[id].item == sword, "Запись serial сохраняет активные лоты и полную вещь")
+	market.payouts["Продавец"] = 950
+	host.players[1].coins = market.WALLET_MAX - 10
+	act(1, "collect")
+	check(host.players[1].coins == market.WALLET_MAX and market.payouts["Продавец"] == 940, "Переполнение кошелька оставляет остаток у доски")
+	market.load_state()
+	check(market.payouts["Продавец"] == 940 and market.lots.has(id), "Лоты и остаток выплаты переживают перезапуск")
+	var world := root.get_node("World")
+	var boards: Array = world.zones.interact.filter(func(spot): return spot.kind == "market")
+	check(boards.size() == 2, "Есть две доски рынка")
+	host.players[1].pos = Vector2(boards[1].x, boards[1].y)
+	host.players[1].coins -= 1000
+	act(1, "collect")
+	check(market.payouts["Продавец"] == 0, "Выплату можно забрать на Пристани")
 
 
 ## Запускает тесты в отдельном файле, сохраняя пользовательский мир.
@@ -282,10 +326,11 @@ func _run() -> void:
 	fees()
 	search_and_history()
 	disk_failure()
+	persistence()
 	var world := root.get_node("Save")
 	world.store_world({"serial": test_serial + 1}, path)
 	market.load_state()
-	check(world.load_world(path).serial == test_serial + 1 and market.lots.is_empty(), "Обновление серийного счётчика сохраняет рынок")
+	check(world.load_world(path).serial == test_serial + 1 and market.lots.size() == 1, "Обновление серийного счётчика сохраняет рынок")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	host.free()
 	if failures == 0:
