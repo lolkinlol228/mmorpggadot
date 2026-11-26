@@ -13,6 +13,7 @@ const HostLogic := preload("res://scripts/host_logic.gd")
 const PropsLayer := preload("res://scripts/props_layer.gd")
 const Ambience := preload("res://scripts/ambience.gd")
 const Interact := preload("res://scripts/interact.gd")
+var client_input
 var interact
 var open_spot := -1
 
@@ -55,6 +56,8 @@ const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot":
 
 
 func _ready() -> void:
+	client_input = preload("res://scripts/client_input.gd").new()
+	client_input.game = self
 	randomize()
 	is_host = multiplayer.is_server()
 	my_id = multiplayer.get_unique_id()
@@ -135,94 +138,11 @@ func _process(delta: float) -> void:
 
 
 func _move_local(delta: float) -> void:
-	if me.is_empty() or int(me.hp) <= 0 or ui.is_typing() or Time.get_ticks_msec() < stun_local_until:
-		return
-	var dir := Vector2.ZERO
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
-		dir.x -= 1
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
-		dir.x += 1
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
-		dir.y -= 1
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
-		dir.y += 1
-	var sprint: bool = Input.is_physical_key_pressed(KEY_SHIFT) and dir != Vector2.ZERO and (stamina > 1.0 or GiftMotion.sprint_cost(me) == 0.0)
-	if dash_left > 0.0:                                  # рывок: летим по направлению, ввод игнорируется
-		dash_left -= delta
-		my_pos = World.move(my_pos, dash_dir * SPEED * DASH_SPEED * Rules.Gifts.factor(me, "dash_dist") * delta)
-	elif dir != Vector2.ZERO:
-		my_pos = World.move(my_pos, dir.normalized() * SPEED * move_mult() * (SPRINT * Rules.Gifts.factor(me, "sprint_speed") if sprint else 1.0) * delta)
-		step_acc += delta * (1.5 if sprint else 1.0)
-		if step_acc > 0.3:
-			step_acc = 0.0
-			Sfx.play("step")
-	if sprint and dash_left <= 0.0:
-		stamina = maxf(0.0, stamina - GiftMotion.sprint_cost(me) * delta)
-		stamina_idle = 0.0
-		dust_acc += delta
-		if dust_acc > 0.12:
-			dust_acc = 0.0
-			fx.dust(my_pos)
-	else:
-		stamina_idle += delta
-		if stamina_idle > 0.6:
-			stamina = minf(100.0, stamina + 24.0 * GiftMotion.stamina_regen(me) * delta)
-	ui.hud.set_stamina(stamina / 100.0)
-	var aim := get_global_mouse_position() - my_pos
-	if aim.length() > 6.0:
-		my_facing = aim.normalized()
-	var view = player_views.get(my_id)
-	if view:
-		view.position = my_pos
-		view.target = my_pos
-		view.facing = my_facing
-	send_acc += delta
-	if send_acc >= NET_TICK and not is_host:
-		send_acc = 0.0
-		rpc_id(1, "h_pos", my_pos, my_facing)
+	client_input._move_local(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var sp: Dictionary = interact.spot(interact.focused) if interact.focused >= 0 else {}
-		var aim := get_global_mouse_position()
-		if not sp.is_empty() and aim.distance_to(Vector2(sp.x, sp.y) - Vector2(0, float(sp.h) * 0.5)) < 14.0:
-			use_spot()
-		else:
-			attack()
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		parry()
-	elif event is InputEventKey and event.pressed and not event.echo:
-		match event.physical_keycode:
-			KEY_SPACE:
-				dash()
-			KEY_F:
-				parry()
-			KEY_I, KEY_TAB:
-				ui.toggle_inventory()
-			KEY_T:
-				request_trade_nearest()
-			KEY_E:
-				use_spot()
-			KEY_C:
-				ui.charwin.toggle()
-			KEY_J:
-				ui.adventure_panel.show_page(false)
-			KEY_R:
-				adventure("rescue")
-			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
-				var ids: Array = ui.hud.skills.ids
-				var i: int = {KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_4: 3, KEY_5: 4}[event.physical_keycode]
-				if i < ids.size():
-					use_skill(ids[i])
-			KEY_ENTER, KEY_KP_ENTER:
-				ui.open_chat()
-				get_viewport().set_input_as_handled()
-			KEY_ESCAPE:
-				ui.close_panels()
-			KEY_F9:
-				if is_host and OS.is_debug_build():
-					host.debug_jackpot()
+	client_input._unhandled_input(event)
 
 
 # ---------- действия игрока (уходят хосту) ----------
@@ -239,54 +159,18 @@ const GiftMotion := preload("res://scripts/player_gift_motion.gd")
 
 
 func dash() -> void:
-	var free: bool = not me.is_empty() and ui.hud.skills.has_buff("pounce")     # кошачья прыть: рывки бесплатно
-	if me.is_empty() or int(me.hp) <= 0 or dash_left > 0.0 or (stamina < DASH_COST and not free):
-		return
-	if not dash_charges.consume(me, free):
-		return
-	var dir := Vector2.ZERO
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): dir.x -= 1
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): dir.x += 1
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): dir.y -= 1
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): dir.y += 1
-	dash_dir = dir.normalized() if dir != Vector2.ZERO else my_facing
-	dash_left = 0.0 if Rules.Gifts.has_flag(me, "blink_dash") else 0.2
-	if not free:
-		stamina -= DASH_COST
-	stamina_idle = 0.0
-	fx.dust(my_pos, 10)
-	Sfx.play("swing", -2.0, 0.7)
-	_to_host("h_dash", [dash_dir])
+	client_input.dash()
 
 
 func attack() -> void:
-	if me.is_empty() or int(me.hp) <= 0:
-		return
-	var now := Time.get_ticks_msec()
-	var style: String = "stab" if not me.equip.has("weapon") and Rules.Gifts.has_flag(me, "fists") else Items.style_of(me.equip.get("weapon"))
-	if now - last_attack < int(float(ATTACK_CD[style]) / GiftMotion.attack_speed(me, ui.hud)):
-		return
-	last_attack = now
-	_to_host("h_attack", [my_facing])
+	client_input.attack()
 
 
 var parry_ready_at := 0
 
 ## Парирование (ПКМ / F): тратит выносливость, само окно и исход решает хост.
 func parry() -> void:
-	if me.is_empty() or int(me.hp) <= 0:
-		return
-	if not Rules.can_parry(me):
-		ui.add_feed("Парировать можно только оружием ближнего боя.", GREY)
-		return
-	var now := Time.get_ticks_msec()
-	var cost := Rules.PARRY.cost * Rules.Gifts.factor(me, "parry_cost")
-	if now < parry_ready_at or stamina < cost:
-		return
-	parry_ready_at = now + int(Rules.PARRY.cd * 1000.0)
-	stamina -= cost
-	stamina_idle = 0.0
-	_to_host("h_parry")
+	client_input.parry()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -315,34 +199,12 @@ func c_parried(pid: int, enemy_pos: Vector2) -> void:
 
 
 func move_mult() -> float:
-	if me.is_empty():
-		return 1.0
-	return GiftMotion.speed(me, ui.hud) * GiftMotion.terrain(me, my_pos, Time.get_ticks_msec() < slow_local_until)
+	return client_input.move_mult()
 
 
 ## Запрос умения с панели.
 func use_skill(id: String) -> void:
-	if me.is_empty() or int(me.hp) <= 0:
-		return
-	var bar = ui.hud.skills
-	if not Rules.skill_unlocked(me, id):
-		ui.add_feed("%s откроется на %d уровне." % [Rules.SKILLS[id].name, Rules.skill_level(me, id)], GREY)
-		return
-	if not Rules.has_class_weapon(me):
-		var names := PackedStringArray()
-		for b in Rules.class_of(me).weapons:
-			names.append(Items.BASES[b].name.to_lower())
-		ui.add_feed("Умения класса работают только со своим оружием: %s." % ", ".join(names), GREY)
-		return
-	if bar.cd_left(id) > 0.0:
-		return
-	var hp_cost := Rules.res_kind(me) == "mana" and Rules.Gifts.has_flag(me, "hp_cost")
-	var available := int(me.hp) - 1 if hp_cost else int(me.get("res", 0))
-	if available < Rules.skill_cost(me, id):
-		ui.add_feed("Не хватает: %s." % Rules.RES_NAMES[Rules.res_kind(me)].to_lower(), GREY)
-		return
-	bar.start_cd(id)
-	_to_host("h_skill", [id, my_facing])
+	client_input.use_skill(id)
 
 
 func add_stat(s: String) -> void:
