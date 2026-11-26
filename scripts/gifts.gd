@@ -156,9 +156,12 @@ static func ids(p: Dictionary) -> Array:
 	for id in p.get("temp_gifts", {}):
 		if id not in result and exists(id):
 			result.append(id)
-	var w = p.get("equip", {}).get("weapon")                      # надетая реликвия даёт свои дары
-	if w is Dictionary and Items.BASES.has(w.base):
-		for id in Items.BASES[w.base].get("grants", []):
+	# надетая реликвия даёт свои дары; Items ищем во время работы — тесты компилируют этот файл до автозагрузок
+	var w = p.get("equip", {}).get("weapon")
+	var loop := Engine.get_main_loop() as SceneTree
+	var items: Node = loop.root.get_node_or_null("Items") if loop != null else null
+	if w is Dictionary and items != null and items.BASES.has(w.base):
+		for id in items.BASES[w.base].get("grants", []):
 			if id not in result and exists(id):
 				result.append(id)
 	return result
