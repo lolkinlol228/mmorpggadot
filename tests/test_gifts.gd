@@ -3,15 +3,11 @@ extends SceneTree
 
 const Gifts := preload("res://scripts/gifts.gd")
 
-const ACTIVE_MODS := "all aoe armor aspd bag bank block buff_dur buff_power buy_price cd coin crit crit_dmg dash_cd dash_charges dash_dist dmg dmg_taken_melee dodge dot heal heal_taken hp hp_regen lifesteal loot mana mana_cost mana_regen mega_rare mythic_find parry_cost parry_window pickup rare_find sell_price skill_crit skill_dmg speed sprint_cost sprint_speed stam_regen thorns xp"
-const DEFERRED_MODS := "carry cc_resist chest_coin cook craft_rare craft_speed craft_xp dmg_taken_ranged food gather_cloth gather_fish gather_hide gather_ore gather_wood revive_speed salvage tool_wear xp_carpenter xp_mining xp_smith xp_tailor xp_tanner"
-const ACTIVE_CONDITIONS := "blade blunt day far_target group low_hp near_ally night not_hurt3 one_enemy outnumbered still target_low vs_big vs_elite vs_golem vs_slime vs_wolf"
-const DEFERRED_CONDITIONS := "dungeon in_forest on_road vs_undead"
-const ACTIVE_PROCS := "bleed bleed_stack buff_aspd buff_dmg buff_speed burn burn_near cd_all cd_reset chain coin_mult dash_dmg delayed_heal gold_drop heal heal_allies instakill invuln knockback mana next_hit_mult parry_reset poison quake reflect repeat repeat_skill self_dmg shield_from_dmg slow stack_dmg stun sunder weaken whirl"
-const DEFERRED_PROCS := "decoy double free_craft gem golden_item no_deplete rare_mat summon_wolf"
+const MODS := "all aoe armor aspd bag bank block buff_dur buff_power buy_price carry cc_resist cd chest_coin coin cook craft_rare craft_speed craft_xp crit crit_dmg dash_cd dash_charges dash_dist dmg dmg_taken_melee dmg_taken_ranged dodge dot food gather_cloth gather_fish gather_hide gather_ore gather_wood heal heal_taken hp hp_regen lifesteal loot mana mana_cost mana_regen mega_rare mythic_find parry_cost parry_window pickup rare_find revive_speed salvage sell_price skill_crit skill_dmg speed sprint_cost sprint_speed stam_regen thorns tool_wear xp xp_carpenter xp_mining xp_smith xp_tailor xp_tanner"
+const CONDITIONS := "blade blunt day dungeon far_target group in_forest low_hp near_ally night not_hurt3 on_road one_enemy outnumbered still target_low vs_big vs_elite vs_golem vs_slime vs_undead vs_wolf"
+const PROCS := "bleed bleed_stack buff_aspd buff_dmg buff_speed burn burn_near cd_all cd_reset chain coin_mult dash_dmg decoy delayed_heal double free_craft gem gold_drop golden_item heal heal_allies instakill invuln knockback mana next_hit_mult no_deplete parry_reset poison quake rare_mat reflect repeat repeat_skill self_dmg shield_from_dmg slow stack_dmg stun summon_wolf sunder weaken whirl"
 const EVENTS := "combat_end combat_start craft dash death dodge gather gather_cloth gather_hide gather_ore gather_wood hit hurt kill loot low_hp parry skill tick"
-const ACTIVE_FLAGS := "berserk first_crit cleave momentum combo4 execute15 crit_chain echo5 kill_streak fate_blade cheat_death300 self_revive600 diamond3 dmg_cap25 block30 mana_shield10 overheal_shield heal_splash empath mana_scaling random_dmg no_armor lone_wolf lunatic night_owl coward hp_cost no_heal free_sprint any_weapon counter_parry"
-const DEFERRED_FLAGS := "fists cd90 titan_grip staff scroll_boost heal_aura orbit revive_heal meteor cold_resist respawn_shield poison_immune adapt unstoppable hydra dungeon_revive see_ore no_fail craft_extra_affix craft_mythic tool_tier_up transmute craft_rarity_up shop_extra rarity_gamble see_caches gold_power no_water_slow no_terrain_slow blink_dash run_charge dash_reset_hit recall300 aura_stam food_share threat_up aura_dmg8 share_dmg30 share_loot rally aura_banner pack aura_xp ally_cheat_death share_gifts king night_vision beast_passive herbs tame see_traps fear_weak fire_immune tree_strike pet_companion enemies_stronger25 hourly_gift boss_aggro_loot vampire demon_tax death_penalty3 all_elite devourer time_stop cross_skill copy_gift"
+const FLAGS := "adapt all_elite ally_cheat_death any_weapon aura_banner aura_dmg8 aura_stam aura_xp beast_passive berserk blink_dash block30 boss_aggro_loot cd90 cheat_death300 cleave cold_resist combo4 copy_gift counter_parry coward craft_extra_affix craft_mythic craft_rarity_up crit_chain cross_skill dash_reset_hit death_penalty3 demon_tax devourer diamond3 dmg_cap25 dungeon_revive echo5 empath enemies_stronger25 execute15 fate_blade fear_weak fire_immune first_crit fists food_share free_sprint gold_power heal_aura heal_splash herbs hourly_gift hp_cost hydra kill_streak king lone_wolf lunatic mana_scaling mana_shield10 meteor momentum night_owl night_vision no_armor no_fail no_heal no_terrain_slow no_water_slow orbit overheal_shield pack pet_companion poison_immune rally random_dmg rarity_gamble recall300 respawn_shield revive_heal run_charge scroll_boost see_caches see_ore see_traps self_revive600 share_dmg30 share_gifts share_loot shop_extra staff tame threat_up time_stop titan_grip tool_tier_up transmute tree_strike unstoppable vampire"
 
 var failures := 0
 
@@ -38,11 +34,11 @@ func check_catalog() -> void:
 		check(not ids.has(id), "Повторяющийся id: " + id)
 		ids[id] = true
 		for key in g.get("mods", {}):
-			check(key in ACTIVE_MODS.split(" ") or key in DEFERRED_MODS.split(" "), "%s: неизвестный модификатор %s" % [id, key])
+			check(key in MODS.split(" "), "%s: неизвестный модификатор %s" % [id, key])
 		if g.has("when"):
-			check(g.when in ACTIVE_CONDITIONS.split(" ") or g.when in DEFERRED_CONDITIONS.split(" "), "%s: неизвестное условие %s" % [id, g.when])
+			check(g.when in CONDITIONS.split(" "), "%s: неизвестное условие %s" % [id, g.when])
 		if g.has("flag"):
-			check(g.flag in ACTIVE_FLAGS.split(" ") or g.flag in DEFERRED_FLAGS.split(" "), "%s: неизвестный флаг %s" % [id, g.flag])
+			check(g.flag in FLAGS.split(" "), "%s: неизвестный флаг %s" % [id, g.flag])
 		if g.has("proc"):
 			var proc: Array = g.proc
 			check(proc.size() == 4, "%s: неверный формат эффекта" % id)
@@ -50,7 +46,7 @@ func check_catalog() -> void:
 				continue
 			check(proc[0] in EVENTS.split(" "), "%s: неизвестное событие %s" % [id, proc[0]])
 			check(float(proc[1]) >= 0.0 and float(proc[1]) <= 1.0, "%s: шанс вне 0..1" % id)
-			check(proc[2] in ACTIVE_PROCS.split(" ") or proc[2] in DEFERRED_PROCS.split(" "), "%s: неизвестный эффект %s" % [id, proc[2]])
+			check(proc[2] in PROCS.split(" "), "%s: неизвестный эффект %s" % [id, proc[2]])
 
 
 ## Проверяет базовые формулы, потолки и старые сохранения.

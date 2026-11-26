@@ -10,6 +10,7 @@ var t := 0.0
 var done := {}
 var offered := false
 var confirmed_at := -1.0
+var adventure_test := OS.get_cmdline_user_args().has("--adventure-test")
 
 
 func _once(key: String) -> bool:
@@ -41,7 +42,9 @@ func _process(delta: float) -> void:
 		_guest_steps()
 	_economy_steps()
 	_hero_steps()
-	if t > 22.0 and _once("quit"):
+	if adventure_test:
+		_adventure_steps()
+	if t > (44.0 if adventure_test else 22.0) and _once("quit"):
 		print("[autotest] %s: кошелёк %s, в хранилище %d" % [Net.player_name, Items.format_coins(int(game.me.coins)), game.me.get("bank", []).size()])
 		print("[autotest] %s: предметов %d, в сумке: %s" % [Net.player_name, game.me.inv.size(),
 			", ".join(game.me.inv.map(func(it): return Items.display_name(it)))])
@@ -241,3 +244,42 @@ func _hero_steps() -> void:
 		if t > 17.6 and _once("guest_log"):
 			print("[autotest] гость: класс %s, %s %d, оружие %s, дары %s" % [Rules.class_id(game.me), Rules.res_kind(game.me),
 				int(game.me.get("res", 0)), str(game.me.equip.get("weapon", {}).get("base", "-")), str(game.me.get("gifts", []))])
+
+
+## Дополнительная проверка клиента: добыча через RPC и изготовление у верстака.
+func _adventure_steps() -> void:
+	var sites := preload("res://scripts/adventure_sites.gd")
+	var spots := sites.spots(World)
+	var ore := Vector2(spots[0].x, spots[0].y)
+	var workshop := Vector2(spots[11].x, spots[11].y)
+	if game.is_host:
+		var guest := _guest_id()
+		if guest == -1:
+			return
+		var p: Dictionary = game.host.players[guest]
+		if t > 22.0 and _once("ore_setup"):
+			for enemy in game.host.enemies.values():
+				if enemy.pos.distance_to(ore) <= 350.0:
+					enemy.stun_until = Time.get_ticks_msec() + 20000
+			game.host.talents.travel(guest, ore)
+		if int(p.materials.get("ore", 0)) == 1 and _once("craft_setup"):
+			p.materials.ore += 2
+			p.get_or_add("temp_gifts", {})["steady_craft"] = Time.get_ticks_msec() + 30000
+			game.host.talents.travel(guest, workshop)
+			game.host._send_self(guest)
+		return
+	if t > 19.0 and game.my_pos.distance_to(ore) < 40.0 and _once("ore_request"):
+		game.adventure("spot", "0")
+	if int(game.me.get("materials", {}).get("ore", 0)) >= 1 and _once("ore_result"):
+		print("[autotest] гость добыл руду через RPC")
+	if done.has("ore_result") and game.my_pos.distance_to(workshop) < 40.0 and _once("craft_request"):
+		game.ui.adventure_panel.show_page(true)
+		game.adventure("make", "sword")
+	if done.has("craft_request") and game.me.inv.any(func(it): return it.base == "sword") and _once("craft_result"):
+		if int(game.me.get("materials", {}).get("ore", 0)) != 0:
+			push_error("[autotest] не списаны материалы")
+		else:
+			print("[autotest] гость изготовил меч через RPC")
+			_shot("13_workshop")
+	if t > 39.0 and _once("adventure_result") and not done.has("craft_result"):
+		push_error("[autotest] этапы гостя: %s, позиция %s" % [str(done.keys()), str(game.my_pos)])
