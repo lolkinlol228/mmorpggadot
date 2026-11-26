@@ -134,19 +134,21 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 		p.riposte_until = 0
 	if e.kind != "golem" and opts.has("execute") and float(e.hp) < float(e.max_hp) * float(opts.execute):
 		dmg *= 2.0
-	if e.kind != "golem" and Gifts.has_flag(p, "execute15") and gifts.ratio(e) < 0.15:
+	if e.kind != "golem" and not e.get("elite", false) and Gifts.has_flag(p, "execute15") and gifts.ratio(e) < 0.15:
 		dmg = maxf(dmg, e.hp)
 	var d := maxi(1, int(dmg))
 	var dealt := mini(int(e.hp), d)
 	e.hp = maxi(0, int(e.hp) - d)
 	host._all("c_enemy_hit", [eid, e.hp, d, crit])
 	if opts.has("slow"):
-		e.slow_until = now_ms() + int(float(opts.slow) * 1000.0 * (Gifts.BOSS_RULES.cc_mult if e.kind == "golem" else 1.0))
+		e.slow_factor = 0.5
+		e.slow_until = now_ms() + int(float(opts.slow) * 1000.0 * (Gifts.BOSS_RULES.cc_mult if e.kind == "golem" or e.get("elite", false) else 1.0))
 	var leech := clampf(float(opts.get("leech", 0.0)) + float(gifts.mod(pid, "lifesteal", ctx)), 0.0, Gifts.CAPS.lifesteal)
 	_heal(pid, int(dealt * leech))
 	ctx.damage = dealt
 	ctx.raw_damage = d
 	gifts.fire(pid, "hit", ctx)
+	host.talents.hit(pid, eid, e, dealt)
 	if e.hp <= 0 and host.enemies.has(eid):
 		host._kill(eid, pid)
 	gifts.after_attack(pid, eid, dealt, ctx)
@@ -207,8 +209,13 @@ func _heal(pid: int, amount: int, from_skill: bool = false, caster: int = -1) ->
 	p.hp += restored
 	if caster >= 0 and caster != pid and Gifts.has_flag(host.players[caster], "empath"):
 		_heal(caster, int(restored * 0.30), from_skill)
-	if host.gifts.ratio(p) >= 0.35:
+	var health: float = host.gifts.ratio(p)
+	if health >= 0.35:
 		p.gift_low = false
+	if health >= 0.30:
+		p.gift_escape = false
+	if health >= 0.20:
+		p.gift_critical = false
 	host._all("c_hp", [pid, p.hp, p.max_hp, 0])
 
 
@@ -268,7 +275,7 @@ func add_stat(s: String) -> void:
 func use(id: String, dir: Vector2) -> void:
 	var pid: int = host._sender()
 	var p = host.players.get(pid)
-	if p == null or int(p.hp) <= 0 or not Rules.SKILLS.has(id) or id not in Rules.class_skills(p):
+	if not host.can_act(p) or not dir.is_finite() or not Rules.SKILLS.has(id) or id not in Rules.class_skills(p):
 		return
 	if not Rules.skill_unlocked(p, id) or not Rules.has_class_weapon(p) or int(p.cds.get(id, 0)) > now_ms():
 		return
@@ -308,6 +315,7 @@ func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
 				var a := (i - (n - 1) / 2.0) * float(sk.spread)
 				bolt(pid, dir.rotated(a), float(sk.range), float(sk.mult), 0.0, 0.0, str(sk.fx), {"skill": true})
 		"heal":
+			host.talents.phoenix(pid, float(sk.get("radius", 120.0)))
 			var amount := int((float(sk.base) + Rules.stat(p, "spi") * float(sk.spi)) * (1.0 + Rules.stat(p, "spi") * 0.04) * host.gifts.factor(pid, "heal"))
 			var target := "allies" if Gifts.has_flag(p, "heal_splash") else str(sk.target)
 			match target:
@@ -342,6 +350,7 @@ func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
 			host._to(pid, "c_teleport", [p.pos, true])
 	host._all("c_skill_fx", [pid, id, dir])
 	if not repeat:
+		host.talents.skill(pid, dir)
 		host.gifts.fire(pid, "skill", {"id": id, "dir": dir})
 	host._send_self(pid)
 
@@ -350,13 +359,16 @@ func perform(pid: int, id: String, dir: Vector2, repeat: bool = false) -> void:
 
 func basic_attack(pid: int, dir: Vector2) -> void:
 	var p: Dictionary = host.players[pid]
-	var style := Items.style_of(p.equip.get("weapon"))
+	var style := "stab" if not p.equip.has("weapon") and host.gifts.has(p, "fists") else Items.style_of(p.equip.get("weapon"))
 	var st: Array = Rules.ATTACKS[style]          # перезарядка, урон, радиус, шанс крита, дальность
 	var now := now_ms()
 	var speed := Rules.attack_speed(p, host.gifts.mod(pid, "aspd") + host.gifts.buff_value(p, "aspd"))
 	if now - int(p.get("atk_at", 0)) < int(float(st[0]) / speed):
 		return
 	p.atk_at = now
+	if Gifts.has_flag(p, "combo4"):
+		p.gift_combo_count = int(p.get("gift_combo_count", 0)) + 1
+		p.gift_combo_attack = int(p.gift_combo_count) % 4 == 0
 	dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
 	host._all("c_swing", [pid, dir])
 	if style in ["bolt", "shot"]:
@@ -365,3 +377,14 @@ func basic_attack(pid: int, dir: Vector2) -> void:
 		bolt(pid, dir, float(st[4]), float(st[1]), 0.0, float(st[3]), look)
 	else:
 		strike(pid, p.pos + dir * float(st[4]), float(st[2]), float(st[1]), float(st[3]))
+
+
+## Накапливает дробное лечение до целого HP.
+func heal_fraction(pid: int, amount: float, source: String) -> void:
+	var p: Dictionary = host.players[pid]
+	if p.hp >= p.max_hp:
+		return
+	var pool: Dictionary = p.get_or_add("fractional_heals", {})
+	var total := float(pool.get(source, 0.0)) + amount
+	pool[source] = fmod(total, 1.0)
+	_heal(pid, floori(total))

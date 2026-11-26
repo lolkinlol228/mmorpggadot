@@ -130,7 +130,7 @@ static func contribution(gift: Dictionary, key: String) -> float:
 ## Сумма пассивных добавок, в том числе для будущих систем ремёсел.
 static func mod(p: Dictionary, key: String) -> float:
 	var total := 0.0
-	for id in p.get("gifts", []):
+	for id in ids(p):
 		var gift := get_gift(id)
 		if not gift.has("when"):
 			total += contribution(gift, key)
@@ -139,7 +139,7 @@ static func mod(p: Dictionary, key: String) -> float:
 
 ## Есть ли у героя особая механика.
 static func has_flag(p: Dictionary, flag: String) -> bool:
-	for id in p.get("gifts", []):
+	for id in ids(p):
 		if get_gift(id).get("flag", "") == flag:
 			return true
 	return false
@@ -148,3 +148,12 @@ static func has_flag(p: Dictionary, flag: String) -> bool:
 ## Множитель с потолком положительной добавки.
 static func factor(p: Dictionary, key: String) -> float:
 	return maxf(0.0, 1.0 + minf(mod(p, key), float(CAPS.get(key, INF))))
+
+
+## Объединяет врождённые и временные дары без повторов.
+static func ids(p: Dictionary) -> Array:
+	var result: Array = p.get("gifts", []).duplicate()
+	for id in p.get("temp_gifts", {}):
+		if id not in result and exists(id):
+			result.append(id)
+	return result

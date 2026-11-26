@@ -30,3 +30,14 @@ static func attack_speed(p: Dictionary, hud) -> float:
 static func stamina_regen(p: Dictionary) -> float:
 	var mods := float(p.get("gift_motion", {}).get("stam_regen", Gifts.mod(p, "stam_regen")))
 	return (1.0 + Rules.stat(p, "vit") * 0.03) * maxf(0.0, 1.0 + mods)
+
+
+## Штрафы скорости от воды, чащи и холода.
+static func terrain(p: Dictionary, pos: Vector2, chilled: bool) -> float:
+	var sites := preload("res://scripts/adventure_sites.gd")
+	var speed := 0.65 if chilled else 1.0
+	if sites.water(pos) and not Gifts.has_flag(p, "no_water_slow"):
+		speed *= 0.65
+	if sites.forest(pos) and not Gifts.has_flag(p, "no_terrain_slow"):
+		speed *= 0.85
+	return speed

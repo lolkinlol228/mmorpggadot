@@ -30,7 +30,7 @@ func build() -> void:
 
 func sync(me: Dictionary) -> void:
 	var c := Rules.class_id(me)
-	if c != cls:
+	if c != cls or ids != Rules.class_skills(me):
 		cls = c
 		_rebuild(me)
 	res = float(me.get("res", 0))
@@ -83,7 +83,7 @@ func _rebuild(me: Dictionary) -> void:
 		lock.size = Vector2(30, 10)
 		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s.add_child(lock)
-		var k := Kit.label(Rules.SKILL_KEYS[i], 9, Kit.GOLD)
+		var k := Kit.label(Rules.SKILL_KEYS[i] if i < Rules.SKILL_KEYS.size() else "5", 9, Kit.GOLD)
 		k.position = Vector2(2, 18)
 		s.add_child(k)
 		add_child(s)

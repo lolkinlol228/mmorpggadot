@@ -135,7 +135,7 @@ func _process(delta: float) -> void:
 
 
 func _move_local(delta: float) -> void:
-	if me.is_empty() or int(me.hp) <= 0 or ui.is_typing():
+	if me.is_empty() or int(me.hp) <= 0 or ui.is_typing() or Time.get_ticks_msec() < stun_local_until:
 		return
 	var dir := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -206,9 +206,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				use_spot()
 			KEY_C:
 				ui.charwin.toggle()
-			KEY_1, KEY_2, KEY_3, KEY_4:
+			KEY_J:
+				ui.adventure_panel.show_page(false)
+			KEY_R:
+				adventure("rescue")
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				var ids: Array = ui.hud.skills.ids
-				var i: int = {KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_4: 3}[event.physical_keycode]
+				var i: int = {KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_4: 3, KEY_5: 4}[event.physical_keycode]
 				if i < ids.size():
 					use_skill(ids[i])
 			KEY_ENTER, KEY_KP_ENTER:
@@ -246,7 +250,7 @@ func dash() -> void:
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): dir.y -= 1
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): dir.y += 1
 	dash_dir = dir.normalized() if dir != Vector2.ZERO else my_facing
-	dash_left = 0.2
+	dash_left = 0.0 if Rules.Gifts.has_flag(me, "blink_dash") else 0.2
 	if not free:
 		stamina -= DASH_COST
 	stamina_idle = 0.0
@@ -259,7 +263,7 @@ func attack() -> void:
 	if me.is_empty() or int(me.hp) <= 0:
 		return
 	var now := Time.get_ticks_msec()
-	var style: String = Items.style_of(me.equip.get("weapon"))
+	var style: String = "stab" if not me.equip.has("weapon") and Rules.Gifts.has_flag(me, "fists") else Items.style_of(me.equip.get("weapon"))
 	if now - last_attack < int(float(ATTACK_CD[style]) / GiftMotion.attack_speed(me, ui.hud)):
 		return
 	last_attack = now
@@ -313,7 +317,7 @@ func c_parried(pid: int, enemy_pos: Vector2) -> void:
 func move_mult() -> float:
 	if me.is_empty():
 		return 1.0
-	return GiftMotion.speed(me, ui.hud)
+	return GiftMotion.speed(me, ui.hud) * GiftMotion.terrain(me, my_pos, Time.get_ticks_msec() < slow_local_until)
 
 
 ## Запрос умения с панели.
@@ -387,11 +391,20 @@ func cancel_trade() -> void:
 
 ## Взаимодействие с отмеченным объектом (хранилище, лавка, доска, житель).
 func use_spot() -> void:
-	if interact.focused < 0 or me.is_empty() or int(me.hp) <= 0:
+	if me.is_empty() or int(me.hp) <= 0:
+		return
+	if interact.focused < 0:
+		adventure("field")
 		return
 	var sp: Dictionary = interact.spot(interact.focused)
 	if Vector2(sp.x, sp.y).distance_to(my_pos) > 70.0:
 		ui.add_feed("Подойди ближе.", GREY)
+		return
+	if sp.kind == "adventure":
+		if sp.action == "workshop":
+			ui.adventure_panel.show_page(true)
+		else:
+			adventure("spot", sp.id)
 		return
 	open_spot = interact.focused
 	if player_views.has(my_id):
@@ -462,23 +475,23 @@ func h_unequip(slot: String) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_trade_req(target: int) -> void:
-	if host: host.trade_request(target)
+	if host: host.trader.trade_request(target)
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_trade_answer(from: int, accept: bool) -> void:
-	if host: host.trade_answer(from, accept)
+	if host: host.trader.trade_answer(from, accept)
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_trade_offer(uids: Array) -> void:
-	if host: host.trade_offer(uids)
+	if host: host.trader.trade_offer(uids)
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_trade_confirm() -> void:
-	if host: host.trade_confirm()
+	if host: host.trader.trade_confirm()
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_trade_cancel() -> void:
-	if host: host.trade_cancel()
+	if host: host.trader.trade_cancel()
 
 @rpc("any_peer", "call_remote", "reliable")
 func h_dash(dir: Vector2) -> void:
@@ -578,7 +591,8 @@ func c_self(priv: Dictionary) -> void:
 	Save.store_char({"name": Net.player_name, "coins": me.coins, "inv": me.inv, "equip": me.equip,
 		"look": me.get("look", {}), "bank": me.get("bank", []), "bounties": me.get("bounties", {}),
 		"level": me.get("level", 1), "xp": me.get("xp", 0), "points": me.get("points", 0), "stats": me.get("stats", {}),
-		"cls": me.get("cls", "warrior"), "gifts": me.get("gifts", []), "gift_state": me.get("gift_state", {})})
+		"cls": me.get("cls", "warrior"), "gifts": me.get("gifts", []), "gift_state": me.get("gift_state", {}), "materials": me.get("materials", {}), "professions": me.get("professions", {}),
+		"tools": me.get("tools", {}), "visited": me.get("visited", {}), "cross_skill": me.get("cross_skill", "")})
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -624,6 +638,7 @@ func c_state(ps: Array, es: Array) -> void:
 func c_enemy_spawn(d: Array) -> void:
 	var v := EnemyView.new()
 	v.setup(d[1], d[2], d[3], d[4])
+	v.elite = d.size() > 5 and bool(d[5])
 	entities.add_child(v)
 	enemy_views[d[0]] = v
 
@@ -794,3 +809,75 @@ func c_gift_motion(values: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func c_parry_reset() -> void:
 	parry_ready_at = 0
+
+
+var stun_local_until := 0
+var slow_local_until := 0
+var adventure_marks := {}
+
+
+## Посылает запрос на действие в мире.
+func adventure(op: String, arg: String = "") -> void:
+	_to_host("h_adventure", [op, arg])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func h_adventure(op: String, arg: String) -> void:
+	if host:
+		host.adventure(op, arg)
+
+
+@rpc("authority", "call_remote", "reliable")
+func c_adventure_control(stun: bool, seconds: float) -> void:
+	var until := Time.get_ticks_msec() + roundi(seconds * 1000.0)
+	if stun:
+		stun_local_until = until
+		dash_left = 0.0
+	else:
+		slow_local_until = until
+
+
+@rpc("authority", "call_remote", "reliable")
+func c_adventure_mark(id: String, pos: Vector2, show_mark: bool) -> void:
+	if show_mark:
+		adventure_marks[id] = pos
+	else:
+		adventure_marks.erase(id)
+
+
+@rpc("authority", "call_remote", "reliable")
+func c_world_pulse(pos: Vector2, radius: float, color: Color) -> void:
+	fx.burst(pos, color, clampi(roundi(radius * 0.4), 5, 36), radius > 40.0)
+
+
+@rpc("authority", "call_remote", "reliable")
+func c_enemy_elite(eid: int, hp: int, maximum: int) -> void:
+	var view = enemy_views.get(eid)
+	if view:
+		view.hp = hp
+		view.max_hp = maximum
+		view.elite = true
+
+
+@rpc("authority", "call_remote", "reliable")
+func c_dash_reset() -> void:
+	dash_charges.used.clear()
+
+
+## Показывает полупрозрачный силуэт на месте рывка.
+@rpc("authority", "call_remote", "reliable")
+func c_adventure_decoy(pid: int, pos: Vector2, duration: float) -> void:
+	var source = player_views.get(pid)
+	if source == null:
+		return
+	var image := PlayerView.new()
+	image.equip = source.equip
+	image.look = source.look
+	image.pname = "Копия"
+	image.npc = true
+	image.position = pos
+	image.target = pos
+	image.facing = source.facing
+	image.modulate = Color(0.55, 0.76, 1.0, 0.58)
+	entities.add_child(image)
+	get_tree().create_timer(duration).timeout.connect(image.queue_free)

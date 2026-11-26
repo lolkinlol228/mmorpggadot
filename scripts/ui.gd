@@ -27,6 +27,7 @@ var invite_panel: PanelContainer
 var invite_label: Label
 var menu_panel: PanelContainer
 var invite_from := -1
+var adventure_panel := preload("res://scripts/adventure_panel.gd").new()
 var inv_grid: GridContainer
 var shop                         # окна хранилища/лавки/доски/разговора
 var trading := false
@@ -59,6 +60,9 @@ func _ready() -> void:
 	charwin.game = game
 	add_child(charwin)
 	charwin.build(root)
+	adventure_panel.game = game
+	add_child(adventure_panel)
+	adventure_panel.build(root)
 
 
 # ---------- для game.gd ----------
@@ -83,6 +87,7 @@ func refresh() -> void:
 	stats_label.text = "Урон   %.0f\nБроня  %d\nМега-находки %d" % [
 		Rules.damage(me), Rules.armor(me), jackpots]
 	shop.refresh()
+	adventure_panel.refresh()
 	for slot in equip_slots:
 		equip_slots[slot].set_item(me.equip.get(slot))
 	var capacity := maxi(me.inv.size(), Items.bag_capacity(me))
@@ -106,6 +111,7 @@ func open_chat() -> void:
 
 
 func close_panels() -> void:
+	adventure_panel.close()
 	if shop.mode != "":
 		shop.close_all()
 	elif trading:
@@ -141,7 +147,7 @@ func _build_inventory() -> void:
 	doll = DollView.new()
 	doll.position = Vector2(27, 24)
 	paper.add_child(doll)
-	var spots := {"head": Vector2(46, 0), "weapon": Vector2(0, 46), "body": Vector2(92, 46), "feet": Vector2(46, 92)}
+	var spots := {"head": Vector2(46, 0), "weapon": Vector2(0, 46), "body": Vector2(92, 46), "feet": Vector2(46, 92), "offhand": Vector2(92, 92)}
 	for slot in Items.SLOTS:
 		var s = ItemSlot.new()
 		s.placeholder = Items.icon_at(Items.SLOT_ICONS[slot])
@@ -198,7 +204,7 @@ func _on_inv_pressed(i: int) -> void:
 		refresh()
 	elif shop.bag_click(me.inv[i]):
 		pass
-	elif me.inv[i].base == "potion":
+	elif Items.slot_of(me.inv[i]) == "use":
 		game.eco("use", uid)
 		Sfx.play("pickup")
 	else:

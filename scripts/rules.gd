@@ -10,7 +10,7 @@ const STAT_HELP := {"str": "+0,6 к урону за очко", "agi": "крит�
 	"vit": "+6 здоровья, быстрее выносливость", "spi": "мана, короче перезарядка умений, сильнее лечение"}
 const BASE_STAT := 5
 const POINTS_PER_LEVEL := 3
-const XP_FOR_KILL := {"slime": 8, "wolf": 18, "golem": 250}
+const XP_FOR_KILL := {"undead": 27, "slime": 8, "wolf": 18, "golem": 250}
 const SHARE_XP_RADIUS := 320.0      # опыт получают все союзники рядом — играть вместе выгодно
 const OFF_CLASS := 0.5              # чужое оружие и броня дают только половину характеристик
 const SKILL_LEVELS := [1, 2, 4, 6]  # с какого уровня открываются 1-е…4-е умения класса
@@ -143,12 +143,16 @@ func class_of(p: Dictionary) -> Dictionary:
 
 
 func class_skills(p: Dictionary) -> Array:
-	return class_of(p).skills
+	var native: Array = class_of(p).skills
+	var extra := str(p.get("cross_skill", ""))
+	if Gifts.has_flag(p, "cross_skill") and SKILLS.has(extra) and extra not in native:
+		return native + [extra]
+	return native
 
 
 func skill_level(p: Dictionary, id: String) -> int:
 	var i := class_skills(p).find(id)
-	return SKILL_LEVELS[i] if i >= 0 else 999
+	return SKILL_LEVELS[mini(i, SKILL_LEVELS.size() - 1)] if i >= 0 else 999
 
 
 ## Какие классы считают предмет своим (для подсказки). Пусто — подходит всем.
@@ -204,6 +208,8 @@ func _gear_sum(p: Dictionary, field: String) -> float:
 	var s := 0.0
 	for it in p.get("equip", {}).values():
 		if it is Dictionary:
+			if it.get("base", "") == "shield" and two_handed(p.get("equip", {}).get("weapon", {})) and not Gifts.has_flag(p, "titan_grip"):
+				continue
 			s += float(it.get(field, 0)) * (1.0 if fits(p, it) else OFF_CLASS)
 	return s
 
@@ -227,7 +233,8 @@ func damage(p: Dictionary) -> float:
 
 ## Урон до применения даров.
 func base_damage(p: Dictionary) -> float:
-	return (4.0 + _gear_sum(p, "dmg") + stat(p, "str") * 0.6) * float(race_of(p).get("dmg_mult", 1.0))
+	var fists := 4.0 if not p.get("equip", {}).has("weapon") and Gifts.has_flag(p, "fists") else 0.0
+	return (4.0 + fists + _gear_sum(p, "dmg") + stat(p, "str") * 0.6) * float(race_of(p).get("dmg_mult", 1.0))
 
 
 func crit_chance(p: Dictionary) -> float:
@@ -295,3 +302,8 @@ func skill_cost(p: Dictionary, id: String) -> int:
 
 func skill_unlocked(p: Dictionary, id: String) -> bool:
 	return int(p.get("level", 1)) >= skill_level(p, id)
+
+
+## Оружие, для которого в обычном случае нужны две руки.
+func two_handed(item: Dictionary) -> bool:
+	return item.get("base", "") in ["staff", "bow", "hammer", "axe", "abyss_blade"]

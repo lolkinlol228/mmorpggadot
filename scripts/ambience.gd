@@ -66,7 +66,7 @@ func _process(_delta: float) -> void:
 			break
 	tint.color = c
 	World.night = clampf((1.0 - c.g) / 0.44, 0.0, 1.0)
-	(vignette.material as ShaderMaterial).set_shader_parameter("strength", 0.35 + World.night * 0.35)
+	(vignette.material as ShaderMaterial).set_shader_parameter("strength", 0.35 + World.night * (0.08 if Rules.Gifts.has_flag(game.me, "night_vision") else 0.35))
 	fireflies.modulate.a = 0.25 + World.night * 0.75
 
 

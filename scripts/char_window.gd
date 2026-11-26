@@ -117,7 +117,7 @@ func refresh(me: Dictionary) -> void:
 	if Rules.heavy_caster(me):
 		lines.append("Латы мешают колдовать: умения дороже на 30%, мана медленнее")
 	passive_label.text = "\n".join(lines)
-	_show_gifts(me.get("gifts", []))
+	_show_gifts(Gifts.ids(me))
 	var need := Rules.xp_to_next(int(me.get("level", 1)))
 	xp_fill.size.x = 186.0 * clampf(float(me.get("xp", 0)) / need, 0.0, 1.0)
 	xp_label.text = "опыт %d / %d" % [int(me.get("xp", 0)), need]

@@ -55,7 +55,8 @@ func store_char(data: Dictionary) -> void:
 ## Проверка данных персонажа, пришедших по сети или из файла.
 func sanitize_char(d) -> Dictionary:
 	var out := {"name": "Игрок", "coins": 0, "inv": [], "equip": {}, "look": {}, "bank": [], "bounties": {},
-		"level": 1, "xp": 0, "points": 0, "stats": {}, "cls": "warrior", "gifts": [], "gift_state": {"fate_blade": 0}}
+		"level": 1, "xp": 0, "points": 0, "stats": {}, "cls": "warrior", "gifts": [], "gift_state": {"fate_blade": 0, "devourer": 0, "pet": false},
+		"materials": {}, "professions": {}, "visited": {"ford": true}, "tools": {"wear": 0.0, "tier": 1}, "cross_skill": ""}
 	if not (d is Dictionary):
 		return out
 	var n := str(d.get("name", "")).strip_edges().left(16)
@@ -66,6 +67,31 @@ func sanitize_char(d) -> Dictionary:
 	var state = d.get("gift_state", {})
 	if state is Dictionary and (state.get("fate_blade") is int or state.get("fate_blade") is float):
 		out.gift_state.fate_blade = clampi(int(state.fate_blade), 0, 2500)
+	if state is Dictionary:
+		if state.get("devourer") is float or state.get("devourer") is int:
+			out.gift_state.devourer = clampi(int(state.devourer), 0, 1000)
+		out.gift_state.pet = state.get("pet") is bool and state.pet
+	var professions = preload("res://scripts/host_professions.gd")
+	for field in ["materials", "professions"]:
+		var values = d.get(field, {})
+		if values is Dictionary:
+			var allowed: Dictionary = professions.NAMES if field == "materials" else professions.PROFESSIONS
+			for key in allowed:
+				var value = values.get(key)
+				if value is float or value is int:
+					out[field][key] = clampi(int(value), 0, 36) if field == "materials" else clampf(float(value), 0.0, 1000000.0)
+	var tools = d.get("tools", {})
+	if tools is Dictionary:
+		if tools.get("wear") is float or tools.get("wear") is int:
+			out.tools.wear = clampf(float(tools.wear), 0.0, 10.0)
+		if tools.get("tier") is float or tools.get("tier") is int:
+			out.tools.tier = clampi(int(tools.tier), 1, 2)
+	var visited = d.get("visited", {})
+	if visited is Dictionary and visited.get("east") is bool and visited.east:
+		out.visited.east = true
+	var extra := str(d.get("cross_skill", ""))
+	if Rules.SKILLS.has(extra):
+		out.cross_skill = extra
 	out.gifts = preload("res://scripts/gifts.gd").sanitize(d.get("gifts", []))
 	out.level = clampi(int(d.get("level", 1)), 1, 99)
 	out.xp = clampi(int(d.get("xp", 0)), 0, 99999999)

@@ -1,6 +1,7 @@
 extends Control
 ## Мини-карта: уменьшенная земля, город, игроки (свой — золотой), враги (красные), босс.
 
+const Sites := preload("res://scripts/adventure_sites.gd")
 const GROUND := preload("res://assets/custom/world/ground.png")
 const Kit := preload("res://scripts/ui_kit.gd")
 
@@ -31,10 +32,18 @@ func _draw() -> void:
 	draw_style_box(_frame, r)
 	var inner := r.grow(-5)
 	draw_texture_rect(GROUND, inner, false, Color(0.85, 0.85, 0.9))
+	var cave := Sites.CAVE
+	draw_rect(Rect2(_to_map(cave.position, inner), cave.size / World.size * inner.size), Color(0.72, 0.49, 0.82), false, 1.0)
 	var town := World.town
 	draw_rect(Rect2(_to_map(town.position, inner), town.size / World.size * inner.size), Color(0.95, 0.78, 0.42, 0.8), false, 1.0)
 	if game == null:
 		return
+	var caches := Rules.Gifts.has_flag(game.me, "see_caches")
+	var ores := Rules.Gifts.has_flag(game.me, "see_ore")
+	if caches or ores:
+		for source in Sites.SOURCES:
+			if (source[0] == "chest" and caches) or (source[0] == "ore" and ores):
+				draw_circle(_to_map(source[2], inner), 2.3, Color.GOLD if source[0] == "chest" else Color.SKY_BLUE)
 	for ev in game.enemy_views.values():
 		var p := _to_map(ev.position, inner)
 		if ev.kind == "golem":

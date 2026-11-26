@@ -15,11 +15,15 @@ const BOUNTIES := [
 # Что продаёт торговка (обычное качество) — по цене value()*3
 const SHOP_STOCK := ["potion", "sword", "axe", "dagger", "hammer", "staff", "wand", "bow", "helm", "hood", "armor",
 	"jerkin", "robe", "boots"]
-const SLOTS := ["weapon", "head", "body", "feet"]
-const SLOT_NAMES := {"weapon": "Оружие", "head": "Голова", "body": "Тело", "feet": "Ноги", "use": "Расходник", "currency": "Монеты"}
+const SLOTS := ["weapon", "head", "body", "feet", "offhand"]
+const SLOT_NAMES := {"weapon": "Оружие", "head": "Голова", "body": "Тело", "feet": "Ноги", "offhand": "Щит", "use": "Расходник", "currency": "Монеты"}
 
 # "icon" — клетка в assets/icons/shikashi_icons.png (сетка 32×32).
 const BASES := {
+	"shield": {"name": "Щит", "slot": "offhand", "dmg": 0, "armor": 4, "icon": Vector2i(7, 7)},
+	"meal": {"name": "Рыбное рагу", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(9, 12), "stack": 10},
+	"scroll": {"name": "Свиток силы", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(2, 10), "stack": 10},
+	"book": {"name": "Книга боя", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(3, 10), "stack": 10},
 	"sword": {"name": "Меч", "slot": "weapon", "dmg": 5, "armor": 0, "icon": Vector2i(1, 5)},
 	"axe": {"name": "Топор", "slot": "weapon", "dmg": 7, "armor": 0, "icon": Vector2i(11, 5)},
 	"dagger": {"name": "Кинжал", "slot": "weapon", "dmg": 4, "armor": 0, "icon": Vector2i(6, 5)},
@@ -45,17 +49,17 @@ const COIN_NAMES := ["Платиновый Осколок", "Золотой", "�
 const COIN_SHORT := ["пл.", "зол.", "сер.", "мед."]
 const COIN_SHEET := preload("res://assets/custom/coins.png")     # медь, серебро, золото, платина
 # цена предметов в медяках (до множителя редкости)
-const VALUE := {"sword": 12, "axe": 15, "dagger": 9, "staff": 14, "wand": 11, "bow": 13, "hammer": 15, "jerkin": 14,
+const VALUE := {"shield": 14, "meal": 4, "scroll": 7, "book": 9,"sword": 12, "axe": 15, "dagger": 9, "staff": 14, "wand": 11, "bow": 13, "hammer": 15, "jerkin": 14,
 	"helm": 10, "hood": 6, "armor": 18, "robe": 12,
 	"boots": 6, "potion": 8, "abyss_blade": 6000, "dawn_crown": 6000}
 const RARITY_VALUE := [1, 3, 10, 40, 220, 1500]
-const COIN_DROPS := {"slime": [2, 7], "wolf": [8, 34], "golem": [450, 900]}
+const COIN_DROPS := {"slime": [2, 7], "wolf": [8, 34], "golem": [450, 900], "undead": [12, 30]}
 const ICON_SHEET := preload("res://assets/icons/shikashi_icons.png")
 # Своё оружие (tools/art/gen_art.py): строки — тип, столбцы — редкость 0..5.
 const WEAPON_SHEET := preload("res://assets/custom/weapons.png")
 const WEAPON_ROWS := ["sword", "axe", "dagger", "abyss_blade", "staff", "wand", "bow", "hammer"]
 const UI_ICONS := {"gold": Vector2i(10, 12), "bag": Vector2i(0, 10), "trade": Vector2i(13, 12)}
-const SLOT_ICONS := {"weapon": Vector2i(1, 5), "head": Vector2i(1, 7), "body": Vector2i(5, 7), "feet": Vector2i(3, 8)}
+const SLOT_ICONS := {"weapon": Vector2i(1, 5), "head": Vector2i(1, 7), "body": Vector2i(5, 7), "feet": Vector2i(3, 8), "offhand": Vector2i(7, 7)}
 var _icon_cache := {}
 const COMMON_BASES := ["sword", "axe", "dagger", "staff", "wand", "bow", "hammer", "helm", "hood", "armor", "jerkin",
 	"robe", "boots"]
@@ -82,6 +86,8 @@ const SHINY_CHANCE := 0.001          # "сияющая" версия любог�
 const BOSS_UNIQUE_CHANCE := 0.0025   # уникальный предмет босса: ~1% за убийство голема
 
 const ENEMIES := {
+	"undead": {"name": "Пещерный мертвец", "hp": 58, "dmg": 10, "speed": 75.0, "radius": 15.0,
+		"aggro": 180.0, "cooldown": 1.6, "color": Color(0.5, 0.75, 0.55)},
 	"slime": {"name": "Слизень", "hp": 24, "dmg": 4, "speed": 70.0, "radius": 14.0,
 		"aggro": 260.0, "cooldown": 1.0, "color": Color(0.3, 0.62, 0.55)},
 	"wolf": {"name": "Волк", "hp": 40, "dmg": 7, "speed": 115.0, "radius": 15.0,
@@ -142,7 +148,7 @@ func value(it: Dictionary) -> int:
 	if it.base == "coins":
 		return int(it.get("count", 0))
 	var v: int = VALUE.get(it.base, 5) * RARITY_VALUE[int(it.rarity)] * (5 if it.shiny else 1)
-	return v * int(it.get("count", 1))
+	return v * int(it.get("count", 1)) * (3 if it.get("golden", false) else 1)
 
 
 ## Иконка 32×32 из листа Shikashi по координатам клетки.
@@ -190,7 +196,7 @@ func roll_rarity(weights: Array) -> int:
 	return 0
 
 
-func roll_drop(boss: bool, mods: Dictionary = {}) -> Dictionary:
+func roll_drop(boss: bool, mods: Dictionary = {}, rarity_shift: int = 0) -> Dictionary:
 	var shiny := randf() < SHINY_CHANCE
 	if boss and randf() < BOSS_UNIQUE_CHANCE:
 		return make(UNIQUE_BASES.pick_random(), 5, "", shiny)
@@ -203,7 +209,7 @@ func roll_drop(boss: bool, mods: Dictionary = {}) -> Dictionary:
 		if i == 5:
 			weight *= 1.0 + float(mods.get("mythic_find", 0.0))
 		weights[i] = roundi(weight * 100.0)
-	var rarity := roll_rarity(weights)
+	var rarity := clampi(roll_rarity(weights) + rarity_shift, 0, 5)
 	return make(COMMON_BASES.pick_random(), rarity, "", shiny)
 
 
@@ -226,7 +232,7 @@ func normalize(d) -> Dictionary:
 		return {}
 	return {
 		"uid": str(d.get("uid", new_uid())).left(40), "base": base,
-		"rarity": clampi(int(d.get("rarity", 0)), 0, 5), "shiny": bool(d.get("shiny", false)),
+		"rarity": clampi(int(d.get("rarity", 0)), 0, 5), "shiny": bool(d.get("shiny", false)), "golden": bool(d.get("golden", false)), "socketed": bool(d.get("socketed", false)),
 		"dmg": clampi(int(d.get("dmg", 0)), 0, 999), "armor": clampi(int(d.get("armor", 0)), 0, 999),
 		"finder": str(d.get("finder", "")).left(20), "found": str(d.get("found", "")).left(12),
 		"serial": maxi(0, int(d.get("serial", 0))),
@@ -239,13 +245,13 @@ func slot_of(it: Dictionary) -> String:
 
 
 func is_jackpot(it: Dictionary) -> bool:
-	return int(it.rarity) >= 4 or bool(it.shiny)
+	return int(it.rarity) >= 4 or bool(it.shiny) or bool(it.get("golden", false))
 
 
 func color(it) -> Color:
 	if not (it is Dictionary) or it.is_empty():
 		return RARITY_COLORS[0]
-	return SHINY_COLOR if it.shiny else RARITY_COLORS[int(it.rarity)]
+	return SHINY_COLOR if it.shiny or it.get("golden", false) else RARITY_COLORS[int(it.rarity)]
 
 
 func display_name(it: Dictionary) -> String:
@@ -254,6 +260,8 @@ func display_name(it: Dictionary) -> String:
 	var n: String = BASES[it.base].name
 	if is_stack(it) and int(it.get("count", 1)) > 1:
 		n += " ×%d" % int(it.count)
+	if it.get("golden", false):
+		n = "Золотой трофей: " + n
 	if it.shiny:
 		n = "★ " + n
 	if int(it.serial) > 0:
@@ -276,6 +284,8 @@ func tooltip(it: Dictionary) -> String:
 		lines.append("Для класса: " + who)
 	if it.shiny:
 		lines.append("★ Сияющий вариант (шанс 1 из 1000)")
+	if it.get("golden", false):
+		lines.append("Золотой трофей: цена продажи ×3")
 	if b.get("unique", false):
 		lines.append("Уникальный трофей Каменного Голема")
 	if int(it.dmg) > 0:

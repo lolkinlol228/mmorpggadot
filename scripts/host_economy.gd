@@ -110,9 +110,10 @@ func _shop(p: Dictionary, op: String, arg: String) -> String:
 		p.inv.remove_at(i)
 		p.coins += price
 		return "Продано: %s за %s" % [name, Items.format_coins(price)]
-	if arg not in Items.SHOP_STOCK:
+	var special: bool = arg == "rare_shield" and host.gifts.has(p, "shop_extra")
+	if arg not in Items.SHOP_STOCK and not special:
 		return ""
-	var it := Items.make_potion(1) if arg == "potion" else Items.make(arg, 0, "Лавка Миры", false)
+	var it := Items.make_potion(1) if arg == "potion" else Items.make("shield" if special else arg, 2 if special else 0, "Лавка Миры", false)
 	var cost := Items.shop_price(p, it, true)
 	if int(p.coins) < cost:
 		return "Не хватает денег: нужно %s" % Items.format_coins(cost)
@@ -127,6 +128,11 @@ func _use(p: Dictionary, uid: String) -> String:
 	if i < 0:
 		return ""
 	var it: Dictionary = p.inv[i]
+	if it.base in ["meal", "scroll", "book"]:
+		it.count = int(it.count) - 1
+		if it.count <= 0:
+			p.inv.remove_at(i)
+		return host.professions.consume(host._sender(), it)
 	if it.base != "potion":
 		return ""
 	if Rules.Gifts.has_flag(p, "no_heal"):

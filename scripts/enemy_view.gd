@@ -7,6 +7,7 @@ const SPRITES := {
 	"golem": {"tex": preload("res://assets/custom/golem.png"), "w": 58, "h": 58, "frames": 2, "fps": 1.5},
 }
 
+var elite := false
 var kind := "slime"
 var data: Dictionary = {}
 var hp := 1
@@ -66,7 +67,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var s: Dictionary = SPRITES[kind]
+	var s: Dictionary = SPRITES.get(kind, SPRITES.slime)
 	var w: int = s.w
 	var h: int = s.h
 	var fps: float = s.fps if (moving or kind != "wolf") else 0.0
@@ -75,7 +76,7 @@ func _draw() -> void:
 	draw_set_transform(Vector2(0, foot), 0, Vector2(1, 0.35))
 	draw_circle(Vector2.ZERO, w * 0.42, Color(0, 0, 0, 0.3))
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-	var tint := Color(1, 0.45, 0.45) if hit_t > 0.0 else Color.WHITE
+	var tint := Color(1, 0.45, 0.45) if hit_t > 0.0 else (Color.PLUM if elite else (Color.PALE_GREEN if kind == "undead" else Color.WHITE))
 	if kind == "wolf" and face > 0:      # в листе волк смотрит влево
 		draw_set_transform(Vector2.ZERO, 0, Vector2(-1, 1))
 	draw_texture_rect_region(s.tex, Rect2(-w / 2.0, foot - h + 3, w, h), Rect2(frame * w, 0, w, h), tint)   # +3: запас холста
@@ -84,7 +85,7 @@ func _draw() -> void:
 
 func _draw_overlay() -> void:
 	if hp < max_hp or kind == "golem":
-		var s: Dictionary = SPRITES[kind]
+		var s: Dictionary = SPRITES.get(kind, SPRITES.slime)
 		var bw: float = s.w * 0.9
 		var ratio := clampf(float(hp) / max_hp, 0.0, 1.0)
 		var y: float = (6.0 if kind != "golem" else 12.0) - s.h - 5.0

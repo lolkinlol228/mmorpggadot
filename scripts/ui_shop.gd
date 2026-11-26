@@ -150,8 +150,8 @@ func _build_shop() -> void:
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 2)
 	body.add_child(grid)
-	for base in Items.SHOP_STOCK:
-		var it := Items.make_potion(1) if base == "potion" else Items.make(base, 0, "Лавка Миры", false)
+	for base in Items.SHOP_STOCK + ["rare_shield"]:
+		var it := Items.make_potion(1) if base == "potion" else Items.make("shield" if base == "rare_shield" else base, 2 if base == "rare_shield" else 0, "Лавка Миры", false)
 		var cell := HBoxContainer.new()
 		var s = ItemSlot.new()
 		s.set_item(it)
@@ -161,9 +161,9 @@ func _build_shop() -> void:
 		cell.add_child(s)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", -2)
-		v.add_child(Kit.label(Items.BASES[base].name, 9))
+		v.add_child(Kit.label(Items.BASES[it.base].name + (" · редкий" if base == "rare_shield" else ""), 9))
 		var price := Kit.label("", 9, Kit.GOLD)
-		buy_prices[base] = [it, price]
+		buy_prices[base] = [it, price, cell]
 		v.add_child(price)
 		cell.add_child(v)
 		grid.add_child(cell)
@@ -171,7 +171,9 @@ func _build_shop() -> void:
 
 ## Показывает цену покупки для текущего героя.
 func _refresh_prices() -> void:
-	for entry in buy_prices.values():
+	for key in buy_prices:
+		var entry: Array = buy_prices[key]
+		entry[2].visible = key != "rare_shield" or Rules.Gifts.has_flag(game.me, "shop_extra")
 		entry[1].text = Items.format_coins(Items.shop_price(game.me, entry[0], true))
 
 
