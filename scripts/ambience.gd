@@ -146,7 +146,8 @@ func _npcs(entities: Node2D) -> void:
 	for n in World.zones.get("npcs", []):
 		var v := PlayerView.new()
 		v.pid = -1
-		v.pname = "%s · %s" % [n[0], n[1]]
+		v.pname = n[0]
+		v.role = n[1]
 		v.look = n[4]
 		var eq := {}
 		for slot in n[5]:

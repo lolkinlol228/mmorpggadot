@@ -72,6 +72,9 @@ func refresh() -> void:
 				add_action("Вспомнить: " + str(Rules.SKILLS[id].name) + active, "cross", id)
 
 
+const MAT_ICONS := {"ore": Vector2i(1, 17), "wood": Vector2i(0, 17), "cloth": Vector2i(5, 17), "hide": Vector2i(8, 17),
+	"fish": Vector2i(3, 16), "herb": Vector2i(13, 11), "gem": Vector2i(15, 12), "star_iron": Vector2i(3, 17),
+	"ancient_wood": Vector2i(0, 17), "moon_silk": Vector2i(6, 17), "prime_hide": Vector2i(8, 17)}
 const FINE := {"ore": "star_iron", "wood": "ancient_wood", "cloth": "moon_silk", "hide": "prime_hide"}
 
 
@@ -89,15 +92,16 @@ func _workshop_page(p: Dictionary) -> void:
 		add_action("Улучшить до тира 2 · 40 мед., руда %d/4" % int(stock.get("ore", 0)), "make", "tool",
 			coins >= 40 and int(stock.get("ore", 0)) >= 4)
 	_header("Материалы")
-	var counts := PackedStringArray()
+	var flow := HFlowContainer.new()
+	flow.custom_minimum_size = Vector2(268, 0)
+	flow.add_theme_constant_override("h_separation", 8)
+	rows.add_child(flow)
 	for material in stock:
 		if int(stock[material]) > 0:
-			counts.append("%s ×%d" % [Professions.NAMES.get(material, material), int(stock[material])])
-	var inventory := Kit.label(", ".join(counts) if not counts.is_empty() else "пусто — собирай у отмеченных источников (E)", 9,
-		Kit.TEXT if not counts.is_empty() else Kit.DIM)
-	inventory.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	inventory.custom_minimum_size = Vector2(268, 0)
-	rows.add_child(inventory)
+			flow.add_child(_chip(MAT_ICONS.get(str(material).trim_prefix("rich_"), Vector2i(1, 17)), "%d" % int(stock[material]),
+				Professions.NAMES.get(material, material), str(material).begins_with("rich_") or material in FINE.values()))
+	if flow.get_child_count() == 0:
+		flow.add_child(Kit.label("пусто — собирай у источников (E)", 9, Kit.DIM))
 	var levels: Dictionary = p.get("professions", {})
 	for job in levels:
 		rows.add_child(Kit.label("%s · ур. %d" % [Professions.PROFESSIONS[job], 1 + Professions.proficiency(p, job)], 9, Kit.DIM))
@@ -131,6 +135,20 @@ func _workshop_page(p: Dictionary) -> void:
 			if Professions.NAMES.has("rich_" + str(key)):
 				add_action("5 × %s → %s" % [Professions.NAMES[key], Professions.NAMES["rich_" + str(key)]], "transmute", key,
 					int(stock[key]) >= 5)
+
+
+## Иконка материала с числом; название — во всплывающей подсказке. Редкие материалы подсвечены.
+func _chip(cell: Vector2i, count: String, tip: String, rare: bool) -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	box.tooltip_text = tip
+	box.mouse_filter = Control.MOUSE_FILTER_PASS
+	var ic := Kit.icon(cell, 14)
+	if rare:
+		ic.modulate = Color(1.25, 1.15, 1.6)
+	box.add_child(ic)
+	box.add_child(Kit.label(count, 9, Kit.GOLD if rare else Kit.TEXT))
+	return box
 
 
 func _header(text: String) -> void:

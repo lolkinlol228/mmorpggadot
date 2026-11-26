@@ -17,6 +17,7 @@ var target := Vector2.ZERO
 var hp := 100
 var max_hp := 100
 var is_me := false
+var role := ""              # должность жителя: видна, только когда герой рядом
 var npc := false             # житель города: без полоски здоровья, имя голубым
 var t := 0.0
 var anim_t := 0.0
@@ -128,7 +129,7 @@ func _best() -> Dictionary:
 func _update_label() -> void:
 	if not label:
 		return
-	label.text = pname
+	label.text = pname if role == "" or not _near_me() else "%s · %s" % [pname, role]
 	var best := _best()
 	var c := Color(1, 0.92, 0.65) if is_me else Color(0.9, 0.9, 0.95)
 	if npc:
@@ -138,7 +139,15 @@ func _update_label() -> void:
 	label.add_theme_color_override("font_color", c)
 
 
+## Рядом ли свой герой (для подписи жителя: иначе соседние имена слипаются).
+func _near_me() -> bool:
+	var g = get_tree().current_scene if is_inside_tree() else null
+	return g != null and g.get("my_pos") is Vector2 and position.distance_to(g.my_pos) < 90.0
+
+
 func _process(delta: float) -> void:
+	if npc and role != "" and Engine.get_process_frames() % 15 == 0:
+		_update_label()
 	t += delta
 	swing_t = maxf(0.0, swing_t - delta)
 	use_t = maxf(0.0, use_t - delta)
