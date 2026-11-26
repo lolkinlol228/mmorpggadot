@@ -166,6 +166,8 @@ func _economy_steps() -> void:
 			game.ui.shop.open("bank", _spot("bank"))
 			game.eco("deposit", game.me.inv[0].uid)
 			print("[autotest] хост сдал в хранилище: ", Items.display_name(game.me.inv[0]))
+		if t > 11.4 and _once("hover_bag"):           # подсказка вещи у правого края экрана
+			_hover(game.ui.inv_grid.get_child(7))
 		if t > 11.8 and _once("shot_bank"):
 			_shot("4_bank")
 		if t > 12.3 and _once("to_shop"):
@@ -216,8 +218,8 @@ func _hero_steps() -> void:
 			game.ui.shop.close_all()
 			game.ui.inv_panel.hide()
 			game.ui.charwin.toggle()
-		if t > 16.9 and _once("hover_crit"):          # подсказка по наведению на иконку параметра
-			_hover(game.ui.charwin.cells["crit"][1])
+		if t > 16.9 and _once("hover_crit"):          # подсказка по наведению: последний ряд окна героя
+			_hover(game.ui.charwin.cells["xp"][1])
 		if t > 17.5 and _once("shot_hero"):
 			_shot("7_hero")
 			game.ui.charwin.toggle()
