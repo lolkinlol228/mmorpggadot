@@ -25,10 +25,22 @@ const NAMES := {"human": "человек", "elf": "эльф", "dwarf": "двар
 	"scar": "шрам", "freckles": "веснушки", "warpaint": "раскраска"}
 const EYE_NAMES := {"brown": "карие", "blue": "голубые", "green": "зелёные", "grey": "серые", "amber": "янтарные"}
 
+const Gifts := preload("res://scripts/gifts.gd")
+
 var look := {}
 var doll
 var look_labels := {}
 var race_info: Label
+# класс и судьба
+var cls := "warrior"
+var fate := {}                 # {gifts: [...], rerolls: N} — пока герой не создан
+var cls_label: Label
+var cls_info: Label
+var cls_buttons: Array = []
+var gifts_box: VBoxContainer
+var reroll_btn: Button
+var lock_label: Label
+var locked := false            # герой с таким именем уже есть: класс и дары закреплены
 
 
 func _ready() -> void:
@@ -62,8 +74,9 @@ func _ready() -> void:
 	row_main.add_theme_constant_override("separation", 6)
 	col.add_child(row_main)
 	_build_look(row_main)
+	_build_fate(row_main)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(230, 0)
+	panel.custom_minimum_size = Vector2(200, 0)
 	row_main.add_child(panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
@@ -71,6 +84,7 @@ func _ready() -> void:
 
 	var saved_name := Save.load_last_name()
 	name_edit = _field(box, "Имя героя", saved_name if saved_name != "" else "Герой%d" % (randi() % 900 + 100))
+	name_edit.text_changed.connect(func(_t): _refresh_fate())
 	box.add_child(Kit.button("Создать мир  (ты — хост)", _on_host))
 	box.add_child(Kit.divider())
 	var row := HBoxContainer.new()
@@ -99,7 +113,119 @@ func _ready() -> void:
 	hint.custom_minimum_size = Vector2(230, 0)
 	col.add_child(hint)
 
+	_refresh_fate()
 	_apply_cmdline_args()
+
+
+# ---------- класс и судьба ----------
+
+func _build_fate(parent: Control) -> void:
+	var p := PanelContainer.new()
+	p.custom_minimum_size = Vector2(170, 0)
+	parent.add_child(p)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	p.add_child(v)
+	var t := Kit.label("Класс и судьба", 9, Kit.GOLD)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 2)
+	v.add_child(h)
+	var cap := Kit.label("Класс", 9, Kit.DIM)
+	cap.custom_minimum_size = Vector2(34, 0)
+	h.add_child(cap)
+	var keys: Array = Rules.CLASSES.keys()
+	cls_buttons = [Kit.button("<", _cycle_class.bind(keys, -1)), Kit.button(">", _cycle_class.bind(keys, 1))]
+	h.add_child(cls_buttons[0])
+	cls_label = Kit.label("", 9, Color.WHITE)
+	cls_label.custom_minimum_size = Vector2(70, 0)
+	cls_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	h.add_child(cls_label)
+	h.add_child(cls_buttons[1])
+	cls_info = Kit.label("", 9, Color(0.6, 0.9, 0.6))
+	cls_info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	cls_info.custom_minimum_size = Vector2(160, 0)
+	v.add_child(cls_info)
+	v.add_child(Kit.divider())
+	v.add_child(Kit.label("Дары судьбы", 9, Kit.GOLD))
+	gifts_box = VBoxContainer.new()
+	gifts_box.add_theme_constant_override("separation", 1)
+	v.add_child(gifts_box)
+	reroll_btn = Kit.button("Перебросить", _reroll)
+	v.add_child(reroll_btn)
+	lock_label = Kit.label("", 9, Kit.DIM)
+	lock_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lock_label.custom_minimum_size = Vector2(160, 0)
+	v.add_child(lock_label)
+	fate = Save.load_fate()
+	if not (fate.get("gifts") is Array) or Gifts.sanitize(fate.gifts).is_empty():
+		fate = {"gifts": Gifts.roll_fate(), "rerolls": Gifts.REROLLS}
+		Save.store_fate(fate)
+	cls = str(fate.get("cls", "warrior")) if Rules.CLASSES.has(str(fate.get("cls", ""))) else "warrior"
+
+
+func _cycle_class(keys: Array, dir: int) -> void:
+	if locked:
+		return
+	cls = keys[(keys.find(cls) + dir + keys.size()) % keys.size()]
+	fate.cls = cls
+	Save.store_fate(fate)
+	_refresh_fate()
+
+
+func _reroll() -> void:
+	if locked or int(fate.get("rerolls", 0)) <= 0:
+		return
+	fate.rerolls = int(fate.rerolls) - 1
+	fate.gifts = Gifts.roll_fate()
+	Save.store_fate(fate)
+	Sfx.play("open")
+	_refresh_fate()
+
+
+## Показывает класс и дары. Если герой с этим именем уже есть — его класс и дары, без выбора.
+func _refresh_fate() -> void:
+	if cls_label == null:
+		return
+	var saved := Save.peek_char(name_edit.text.strip_edges()) if name_edit else {}
+	locked = saved.has("cls")
+	var show_cls: String = str(saved.cls) if locked else cls
+	var gifts: Array = Gifts.sanitize(saved.get("gifts", [])) if locked else Gifts.sanitize(fate.get("gifts", []))
+	var c: Dictionary = Rules.CLASSES.get(show_cls, Rules.CLASSES.warrior)
+	cls_label.text = c.name
+	var wn := PackedStringArray()
+	for b in c.weapons:
+		wn.append(Items.BASES[b].name.to_lower())
+	cls_info.text = "%s\nОружие: %s\n%s: умения тратят её" % [c.role, ", ".join(wn), Rules.RES_NAMES[c.res]]
+	for b in cls_buttons:
+		b.disabled = locked
+	for ch in gifts_box.get_children():
+		ch.queue_free()
+	if gifts.is_empty():
+		gifts_box.add_child(Kit.label("нет", 9, Kit.DIM))
+	for id in gifts:
+		var g := Gifts.get_gift(id)
+		var n := Kit.label("◆ %s · %s" % [g.name, Gifts.RARITY_NAMES[g.rarity].to_lower()], 9, Gifts.color(id))
+		n.tooltip_text = Gifts.tooltip(id)
+		n.mouse_filter = Control.MOUSE_FILTER_PASS
+		gifts_box.add_child(n)
+		var d := Kit.label(str(g.desc), 9, Kit.TEXT)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD
+		d.custom_minimum_size = Vector2(160, 0)
+		gifts_box.add_child(d)
+	reroll_btn.visible = not locked
+	reroll_btn.disabled = int(fate.get("rerolls", 0)) <= 0
+	reroll_btn.text = "Перебросить (осталось %d)" % int(fate.get("rerolls", 0))
+	lock_label.text = "Герой «%s» уже создан: класс и дары закреплены." % name_edit.text.strip_edges() if locked \
+		else "Класс и дары выбираются один раз — при входе в мир."
+	Net.player_class = show_cls
+	Net.player_gifts = gifts
+	if doll:
+		var eq := {}
+		for base in c.kit:
+			eq[Items.slot_of({"base": base})] = {"base": base, "rarity": 0, "shiny": false}
+		doll.equip = eq
 
 
 func _build_look(parent: Control) -> void:
@@ -166,10 +292,9 @@ func _apply_look() -> void:
 	var st := []
 	for s in r.stats:
 		st.append("%s +%d" % [Rules.STAT_NAMES[s], r.stats[s]])
-	race_info.text = "%s\n%s\nУмение: %s" % [", ".join(st), r.passive, Rules.SKILLS[r.skill].name]
-	race_info.tooltip_text = Rules.SKILLS[r.skill].desc
+	race_info.text = "%s\n%s" % [", ".join(st), r.passive]
 	doll.look = look
-	doll.equip = {"weapon": {"base": "sword", "rarity": 0, "shiny": false}}
+	_refresh_fate()                           # кукла держит стартовое оружие класса
 	Save.store_look(look)
 	Net.player_look = look
 
@@ -243,13 +368,21 @@ func _apply_cmdline_args() -> void:
 			d[keys[k]] = lp[k]
 		look = CharBaker.sanitize_look(d)
 		_apply_look()
+	if args.has("name"):
+		name_edit.text = args.name
+		if args.has("fresh") and OS.is_debug_build():          # тест: герой создаётся заново
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(Save._char_path(args.name)))
+	if args.has("cls") and Rules.CLASSES.has(args.cls):
+		cls = args.cls
+		fate.cls = cls
+	if args.has("gifts") and OS.is_debug_build():
+		fate.gifts = Gifts.sanitize(Array(args.gifts.split(",")))
+	_refresh_fate()
 	if args.has("menushot") and OS.is_debug_build():
 		await get_tree().create_timer(1.0).timeout
 		get_viewport().get_texture().get_image().save_png(args.menushot)
 		get_tree().quit()
 		return
-	if args.has("name"):
-		name_edit.text = args.name
 	if args.has("host"):
 		_on_host.call_deferred()
 	elif args.has("join"):

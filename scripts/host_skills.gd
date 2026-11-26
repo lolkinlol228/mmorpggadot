@@ -1,8 +1,15 @@
 extends Node
-## Хост: опыт и уровни, очки характеристик, умения (перезарядки, эффекты), усиления (баффы),
-## расчёт удара по врагу с учётом характеристик, расы и баффов.
+## Хост: опыт и уровни, очки характеристик, ресурс класса (мана / ярость / энергия),
+## умения классов по данным Rules.SKILLS (strike, bolt, multi, heal, buff, blink), усиления (баффы),
+## расчёт удара по врагу с учётом характеристик и баффов, дальние атаки.
+
+const RAGE_PER_HIT := 6.0
+const RAGE_PER_HURT := 4.0
+const RAGE_DECAY := 3.0          # в секунду, если 5 сек нет боя
+const RES_SYNC := 0.25           # как часто слать ресурс владельцу
 
 var host        # host_logic.gd
+var _res_acc := 0.0
 
 
 func now_ms() -> int:
@@ -31,31 +38,125 @@ func buffs_left(p: Dictionary) -> Dictionary:
 	return out
 
 
+## Множитель получаемого урона от баффов (каменная кожа, щит веры, божественный щит).
+func damage_taken_mult(p: Dictionary) -> float:
+	if has_buff(p, "divine"):
+		return 0.0
+	var m := 1.0
+	if has_buff(p, "stoneskin"):
+		m *= 0.4
+	if has_buff(p, "barrier"):
+		m *= 0.5
+	return m
+
+
+# ---------- ресурс класса ----------
+
+func init_res(p: Dictionary) -> void:
+	p.res_max = Rules.res_max(p)
+	p.res = 0.0 if Rules.res_kind(p) == "rage" else float(p.res_max)
+
+
+func add_res(p: Dictionary, amount: float) -> void:
+	p.res = clampf(float(p.get("res", 0.0)) + amount, 0.0, float(p.get("res_max", 100)))
+
+
+func res_tick(delta: float) -> void:
+	_res_acc += delta
+	var sync := _res_acc >= RES_SYNC
+	if sync:
+		_res_acc = 0.0
+	for pid in host.players:
+		var p: Dictionary = host.players[pid]
+		if int(p.hp) <= 0:
+			continue
+		p.res_max = Rules.res_max(p)
+		if Rules.res_kind(p) == "rage":
+			var idle := now_ms() - maxi(int(p.get("hurt_at", 0)), int(p.get("atk_at", 0)))
+			if idle > 5000:
+				add_res(p, -RAGE_DECAY * delta)
+		else:
+			add_res(p, Rules.res_regen(p) * delta)
+		if sync and int(p.res) != int(p.get("_res_sent", -1)):
+			p._res_sent = int(p.res)
+			host._to(pid, "c_res", [int(p.res), int(p.res_max)])
+
+
+func on_hurt(pid: int) -> void:
+	var p: Dictionary = host.players[pid]
+	if Rules.res_kind(p) == "rage":
+		add_res(p, RAGE_PER_HURT)
+
+
 # ---------- удар по врагу ----------
 
-## Бьёт всех врагов в круге. mult — множитель урона умения/оружия, crit_bonus — добавка к шансу крита.
-func strike(pid: int, center: Vector2, radius: float, mult: float, crit_bonus: float) -> void:
+## Один удар по одному врагу. opts: slow (сек), execute (порог здоровья для ×2), leech (доля урона в лечение).
+func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Dictionary = {}) -> void:
 	var p: Dictionary = host.players[pid]
+	var e: Dictionary = host.enemies.get(eid, {})
+	if e.is_empty():
+		return
+	var crit := randf() < Rules.crit_chance(p) + crit_bonus
+	var cmult := 2.0
+	if has_buff(p, "dirty_trick"):                   # подлый приём: гарантированный крит ×3
+		crit = true
+		cmult = 3.0
+		p.buffs.erase("dirty_trick")
+	var dmg := Rules.damage(p) * mult * randf_range(0.85, 1.15) * (cmult if crit else 1.0)
+	if has_buff(p, "warcry"):
+		dmg *= 1.4
+	if opts.has("execute") and float(e.hp) < float(e.max_hp) * float(opts.execute):
+		dmg *= 2.0
+	var d := int(dmg)
+	e.hp -= d
+	host._all("c_enemy_hit", [eid, e.hp, d, crit])
+	if opts.has("slow"):
+		e.slow_until = now_ms() + int(float(opts.slow) * 1000.0)
+	if opts.has("leech"):
+		_heal(pid, int(d * float(opts.leech)))
+	if e.hp <= 0:
+		host._kill(eid, pid)
+
+
+## Бьёт всех врагов в круге. Возвращает, сколько задел.
+func strike(pid: int, center: Vector2, radius: float, mult: float, crit_bonus: float, opts: Dictionary = {}) -> int:
+	var n := 0
 	for eid in host.enemies.keys():
 		var e: Dictionary = host.enemies.get(eid, {})
 		if e.is_empty() or e.pos.distance_to(center) > radius + Items.ENEMIES[e.kind].radius:
 			continue
-		var crit := randf() < Rules.crit_chance(p) + crit_bonus
-		var cmult := 2.0
-		if has_buff(p, "dirty_trick"):                   # подлый приём: гарантированный крит ×3
-			crit = true
-			cmult = 3.0
-			p.buffs.erase("dirty_trick")
-		var dmg := Rules.damage(p) * mult * randf_range(0.85, 1.15) * (cmult if crit else 1.0)
-		if has_buff(p, "warcry"):
-			dmg *= 1.4
-		var d := int(dmg)
-		e.hp -= d
-		host._all("c_enemy_hit", [eid, e.hp, d, crit])
-		if has_buff(p, "drain"):
-			_heal(pid, int(d * 0.35))
-		if e.hp <= 0:
-			host._kill(eid, pid)
+		hit_enemy(pid, eid, mult, crit_bonus, opts)
+		n += 1
+	if n > 0 and Rules.res_kind(host.players[pid]) == "rage":
+		add_res(host.players[pid], RAGE_PER_HIT)
+	return n
+
+
+## Снаряд по прямой: попадает в первого врага на пути. aoe > 0 — взрыв вокруг точки попадания.
+func bolt(pid: int, dir: Vector2, reach: float, mult: float, aoe: float, crit_bonus: float, look: String) -> void:
+	var p: Dictionary = host.players[pid]
+	var from: Vector2 = p.pos
+	var best_t := reach
+	var best := -1
+	for eid in host.enemies:
+		var e: Dictionary = host.enemies[eid]
+		var rel: Vector2 = e.pos - from
+		var t := rel.dot(dir)
+		if t < 0.0 or t > best_t:
+			continue
+		if absf(rel.cross(dir)) <= float(Items.ENEMIES[e.kind].radius) + 6.0:
+			best_t = t
+			best = eid
+	var end := from + dir * best_t
+	host._all("c_shot", [from, end, look, aoe])
+	if best == -1:
+		return
+	if aoe > 0.0:
+		strike(pid, host.enemies[best].pos, aoe, mult, crit_bonus)
+	else:
+		hit_enemy(pid, best, mult, crit_bonus)
+		if Rules.res_kind(p) == "rage":
+			add_res(p, RAGE_PER_HIT)
 
 
 func _heal(pid: int, amount: int) -> void:
@@ -64,6 +165,15 @@ func _heal(pid: int, amount: int) -> void:
 		return
 	p.hp = mini(int(p.max_hp), int(p.hp) + amount)
 	host._all("c_hp", [pid, p.hp, p.max_hp, 0])
+
+
+func _allies_near(pos: Vector2, radius: float) -> Array:
+	var out := []
+	for pid in host.players:
+		var o: Dictionary = host.players[pid]
+		if int(o.hp) > 0 and o.pos.distance_to(pos) <= radius:
+			out.append(pid)
+	return out
 
 
 # ---------- опыт и уровни ----------
@@ -88,6 +198,7 @@ func give_xp(pid: int, amount: int) -> void:
 	if leveled:
 		p.max_hp = Rules.max_hp(p)
 		p.hp = p.max_hp
+		p.res_max = Rules.res_max(p)
 		host._all("c_levelup", [pid, int(p.level)])
 		host._all("c_hp", [pid, p.hp, p.max_hp, 0])
 	host._send_self(pid)
@@ -101,6 +212,7 @@ func add_stat(s: String) -> void:
 	p.points = int(p.points) - 1
 	p.stats[s] = int(p.stats.get(s, 0)) + 1
 	p.max_hp = Rules.max_hp(p)
+	p.res_max = Rules.res_max(p)
 	host._all("c_hp", [pid, p.hp, p.max_hp, 0])
 	host._send_self(pid)
 
@@ -110,31 +222,75 @@ func add_stat(s: String) -> void:
 func use(id: String, dir: Vector2) -> void:
 	var pid: int = host._sender()
 	var p = host.players.get(pid)
-	if p == null or int(p.hp) <= 0 or not Rules.SKILLS.has(id) or not Rules.skill_unlocked(p, id):
+	if p == null or int(p.hp) <= 0 or not Rules.SKILLS.has(id) or id not in Rules.class_skills(p):
 		return
-	if int(p.cds.get(id, 0)) > now_ms():
+	if not Rules.skill_unlocked(p, id) or not Rules.has_class_weapon(p) or int(p.cds.get(id, 0)) > now_ms():
+		return
+	var cost := Rules.skill_cost(p, id)
+	if float(p.get("res", 0.0)) < cost:
 		return
 	var sk: Dictionary = Rules.SKILLS[id]
+	add_res(p, -cost)
 	p.cds[id] = now_ms() + int(float(sk.cd) * Rules.cd_mult(p) * 1000.0)
 	dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
-	match id:
-		"whirl":
-			strike(pid, p.pos, 46.0, 1.2, 0.0)
-		"smash":
-			strike(pid, p.pos + dir * 28.0, 30.0, 2.5, 0.1)
-		"mend":
-			_heal(pid, int((30 + Rules.stat(p, "spi") * 3) * Rules.heal_power(p)))
-		"second_wind":
-			_heal(pid, int(30 * Rules.heal_power(p)))
-		"warcry":                                        # союзникам рядом — тоже
-			for other in host.players:
-				var o: Dictionary = host.players[other]
-				if o.pos.distance_to(p.pos) <= 120.0:
-					o.buffs["warcry"] = now_ms() + int(sk.dur * 1000)
-					if other != pid:
-						host._to(other, "c_announce", ["%s: боевой клич! Урон +40%%" % p.name, Color(1, 0.5, 0.4)])
-						host._send_self(other)
-		"stoneskin", "drain", "pounce", "dirty_trick":
-			p.buffs[id] = now_ms() + int(sk.dur * 1000)
+	match str(sk.kind):
+		"strike":
+			var opts := {}
+			for k in ["slow", "execute", "leech"]:
+				if sk.has(k):
+					opts[k] = sk[k]
+			strike(pid, p.pos + dir * float(sk.off), float(sk.r), float(sk.mult), float(sk.crit), opts)
+		"bolt":
+			bolt(pid, dir, float(sk.range), float(sk.mult), float(sk.aoe), float(sk.crit), str(sk.fx))
+		"multi":
+			var n := int(sk.count)
+			for i in n:
+				var a := (i - (n - 1) / 2.0) * float(sk.spread)
+				bolt(pid, dir.rotated(a), float(sk.range), float(sk.mult), 0.0, 0.0, str(sk.fx))
+		"heal":
+			var amount := int((float(sk.base) + Rules.stat(p, "spi") * float(sk.spi)) * Rules.heal_power(p))
+			match str(sk.target):
+				"self":
+					_heal(pid, amount)
+				"allies":
+					for other in _allies_near(p.pos, float(sk.radius)):
+						_heal(other, amount)
+				"lowest":
+					var best := pid
+					var worst := 2.0
+					for other in _allies_near(p.pos, float(sk.radius)):
+						var o: Dictionary = host.players[other]
+						var ratio := float(o.hp) / maxf(1.0, float(o.max_hp))
+						if ratio < worst:
+							worst = ratio
+							best = other
+					_heal(best, amount)
+		"buff":
+			var targets: Array = [pid] if float(sk.allies) <= 0.0 else _allies_near(p.pos, float(sk.allies))
+			for other in targets:
+				host.players[other].buffs[sk.buff] = now_ms() + int(float(sk.dur) * 1000.0)
+				if other != pid:
+					host._to(other, "c_announce", ["%s: %s!" % [p.name, sk.name], Color(1, 0.75, 0.4)])
+					host._send_self(other)
 	host._all("c_skill_fx", [pid, id, dir])
 	host._send_self(pid)
+
+
+# ---------- базовая атака ----------
+
+func basic_attack(pid: int, dir: Vector2) -> void:
+	var p: Dictionary = host.players[pid]
+	var style := Items.style_of(p.equip.get("weapon"))
+	var st: Array = Rules.ATTACKS[style]          # перезарядка, урон, радиус, шанс крита, дальность
+	var now := now_ms()
+	if now - int(p.get("atk_at", 0)) < int(float(st[0]) / Rules.attack_speed(p)):
+		return
+	p.atk_at = now
+	dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
+	host._all("c_swing", [pid, dir])
+	if style in ["bolt", "shot"]:
+		var w: Dictionary = p.equip.get("weapon", {})
+		var look := "arrow" if style == "shot" else ("holy" if w.get("base", "") == "wand" else "arcane")
+		bolt(pid, dir, float(st[4]), float(st[1]), 0.0, float(st[3]), look)
+	else:
+		strike(pid, p.pos + dir * float(st[4]), float(st[2]), float(st[1]), float(st[3]))

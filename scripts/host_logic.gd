@@ -64,7 +64,7 @@ func _nid() -> int:
 func _public(pid: int) -> Dictionary:
 	var p: Dictionary = players[pid]
 	return {"id": pid, "name": p.name, "pos": p.pos, "equip": p.equip.duplicate(true), "look": p.look,
-		"hp": p.hp, "max_hp": p.max_hp}
+		"hp": p.hp, "max_hp": p.max_hp, "cls": p.cls, "gifts": p.gifts.duplicate()}
 
 
 func _private(pid: int) -> Dictionary:
@@ -72,7 +72,8 @@ func _private(pid: int) -> Dictionary:
 	return {"inv": p.inv.duplicate(true), "equip": p.equip.duplicate(true), "coins": p.coins, "look": p.look,
 		"bank": p.bank.duplicate(true), "bounties": p.bounties.duplicate(),
 		"hp": p.hp, "max_hp": p.max_hp, "pos": p.pos, "level": p.level, "xp": p.xp, "points": p.points,
-		"stats": p.stats.duplicate(), "cds": skills.cds_left(p), "buffs": skills.buffs_left(p)}
+		"stats": p.stats.duplicate(), "cds": skills.cds_left(p), "buffs": skills.buffs_left(p),
+		"cls": p.cls, "gifts": p.gifts.duplicate(), "res": int(p.res), "res_max": int(p.res_max)}
 
 
 func _find(inv: Array, uid: String) -> int:
@@ -97,6 +98,7 @@ func register(data: Dictionary) -> void:
 		"facing": Vector2.RIGHT, "trade": 0, "invite": -1, "cds": {}, "buffs": {}})
 	p.max_hp = Rules.max_hp(p)
 	p.hp = p.max_hp
+	skills.init_res(p)
 	players[id] = p
 	print("[host] игрок вошёл: %s (peer %d), предметов: %d" % [p.name, id, p.inv.size()])
 	var ps := []
@@ -177,6 +179,7 @@ func _players_tick(delta: float) -> void:
 		elif regen and p.hp < p.max_hp and Time.get_ticks_msec() - int(p.get("hurt_at", 0)) > 4000:
 			p.hp = mini(p.max_hp, p.hp + int(4 * float(Rules.race_of(p).get("regen_mult", 1.0))))
 			_all("c_hp", [pid, p.hp, p.max_hp, 0])
+	skills.res_tick(delta)
 
 
 func dash() -> void:
@@ -190,9 +193,11 @@ func _hurt_player(pid: int, dmg: int) -> void:
 	var p: Dictionary = players[pid]
 	if Time.get_ticks_msec() < int(p.get("invuln_until", 0)):
 		return
-	var dealt := maxi(1, dmg - int(Rules.armor(p) * 0.5))
-	if skills.has_buff(p, "stoneskin"):
-		dealt = maxi(1, int(dealt * 0.4))
+	var mult: float = skills.damage_taken_mult(p)
+	if mult <= 0.0:
+		return                                              # божественный щит
+	var dealt := maxi(1, int((dmg - int(Rules.armor(p) * 0.5)) * mult))
+	skills.on_hurt(pid)
 	p.hp = maxi(0, int(p.hp) - dealt)
 	p.hurt_at = Time.get_ticks_msec()
 	_all("c_hp", [pid, p.hp, p.max_hp, dealt])
@@ -255,8 +260,9 @@ func _enemy_ai(delta: float) -> void:
 				best = d
 				target = pid
 		if target != -1:
+			var slow := 0.5 if int(e.get("slow_until", 0)) > Time.get_ticks_msec() else 1.0
 			if best > k.radius + 16.0:
-				_step(e, (players[target].pos - e.pos).normalized() * k.speed * delta, k)
+				_step(e, (players[target].pos - e.pos).normalized() * k.speed * slow * delta, k)
 			elif e.cd <= 0.0:
 				e.cd = k.cooldown
 				_hurt_player(target, k.dmg)
@@ -280,17 +286,7 @@ func attack(dir: Vector2) -> void:
 	var p = players.get(id)
 	if p == null or int(p.hp) <= 0:
 		return
-	var now := Time.get_ticks_msec()
-	var style := preload("res://scripts/player_view.gd").style_for(p.equip)
-	var st: Array = {"slash": [300, 1.0, 36.0, 0.10, 30.0], "chop": [470, 1.35, 42.0, 0.10, 28.0],
-		"stab": [190, 0.8, 26.0, 0.22, 34.0]}[style]          # перезарядка, урон, радиус, шанс крита, дальность
-	if now - int(p.get("atk_at", 0)) < int(float(st[0]) / Rules.attack_speed(p)):
-		return
-	p.atk_at = now
-	dir = dir.normalized() if dir.length() > 0.01 else Vector2.RIGHT
-	var center: Vector2 = p.pos + dir * float(st[4])
-	_all("c_swing", [id, dir])
-	skills.strike(id, center, float(st[2]), float(st[1]), float(st[3]))
+	skills.basic_attack(id, dir)
 
 
 func _kill(eid: int, killer: int) -> void:

@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 		_guest_steps()
 	_economy_steps()
 	_hero_steps()
-	if t > 21.0 and _once("quit"):
+	if t > 22.0 and _once("quit"):
 		print("[autotest] %s: кошелёк %s, в хранилище %d" % [Net.player_name, Items.format_coins(int(game.me.coins)), game.me.get("bank", []).size()])
 		print("[autotest] %s: предметов %d, в сумке: %s" % [Net.player_name, game.me.inv.size(),
 			", ".join(game.me.inv.map(func(it): return Items.display_name(it)))])
@@ -176,15 +176,26 @@ func _economy_steps() -> void:
 		if t > 12.2 and _once("shot_talk"):
 			_shot("4_talk")
 
-## Уровни, характеристики, умения: хост даёт себе опыт, вкладывает очки, бьёт «Вихрем»; гость жмёт умение расы.
+## Классы: хост поднимает себе уровень до 6 (открыты все 4 умения), заполняет ресурс всем,
+## ставит двух слизней впереди и по очереди жмёт 1-2-3-4 со снимком после каждого. Гость бьёт базовой атакой
+## и жмёт первое умение своего класса.
 func _hero_steps() -> void:
 	if game.is_host:
 		if t > 16.0 and _once("xp"):
 			game.my_pos = World.spawn + Vector2(0, 80)
-			game.host.skills.give_xp(game.my_id, 420)
-			game.host.spawn_enemy("slime")
-			game.host.enemies[game.host.next_id].pos = game.my_pos + Vector2(26, 6)
-			game.host.enemies[game.host.next_id].cd = 99.0
+			game.host.skills.give_xp(game.my_id, 900)
+			var hp: Dictionary = game.host.players[game.my_id]           # своё оружие класса, без чужих лат
+			hp.equip["weapon"] = Items.make(Rules.class_of(hp).kit[0], 3, "тест", false)
+			hp.equip.erase("head")
+			game.host._after_equip(game.my_id)
+			for i in 2:
+				game.host.spawn_enemy("slime")
+				game.host.enemies[game.host.next_id].pos = game.my_pos + Vector2(40 + i * 14, 4 - i * 10)
+				game.host.enemies[game.host.next_id].cd = 99.0
+			game.my_facing = Vector2.RIGHT
+		if t > 16.3 and _once("res"):
+			for pid in game.host.players:
+				game.host.players[pid].res = float(game.host.players[pid].res_max)
 		if t > 16.6 and _once("stats"):
 			game.add_stat("str")
 			game.add_stat("vit")
@@ -194,19 +205,28 @@ func _hero_steps() -> void:
 		if t > 17.5 and _once("shot_hero"):
 			_shot("7_hero")
 			game.ui.charwin.toggle()
-		if t > 18.0 and _once("whirl"):
-			game.use_skill("whirl")
-		if t > 18.15 and _once("shot_whirl"):
-			_shot("8_whirl")
-		if t > 18.8 and _once("race_skill"):
-			game.use_skill(Rules.race_skill(game.me))
-		if t > 19.1 and _once("shot_race"):
-			_shot("9_race_skill")
-		if t > 19.5 and _once("hero_log"):
-			print("[autotest] герой: уровень %d, очки %d, сила %d, здоровье %d, перезарядки %s" % [int(game.me.level),
-				int(game.me.points), Rules.stat(game.me, "str"), int(game.me.max_hp), str(game.me.cds)])
+		var ids: Array = Rules.class_skills(game.me) if not game.me.is_empty() else []
+		for i in ids.size():
+			var at := 18.0 + i * 0.6
+			if t > at and _once("skill%d" % i):
+				game.my_facing = Vector2.RIGHT
+				game.use_skill(ids[i])
+			if t > at + 0.15 and _once("shot_skill%d" % i):
+				_shot("%d_%s" % [8 + i, ids[i]])
+		if t > 20.6 and _once("hero_log"):
+			print("[autotest] герой: класс %s, уровень %d, %s %d/%d, здоровье %d, перезарядки %s, дары %s" % [
+				Rules.class_id(game.me), int(game.me.level), Rules.res_kind(game.me), int(game.me.get("res", 0)),
+				int(game.me.get("res_max", 0)), int(game.me.max_hp), str(game.me.cds.keys()), str(game.me.get("gifts", []))])
 	else:
-		if t > 16.5 and _once("race_skill"):
-			game.use_skill(Rules.race_skill(game.me))
-		if t > 16.8 and _once("shot_race"):
-			_shot("7_race_skill")
+		if t > 16.5 and _once("basic"):
+			game.my_facing = Vector2.RIGHT
+			game.attack()
+		if t > 16.62 and _once("shot_basic"):
+			_shot("7_basic_attack")
+		if t > 17.0 and _once("skill0"):
+			game.use_skill(Rules.class_skills(game.me)[0])
+		if t > 17.15 and _once("shot_skill0"):
+			_shot("8_" + Rules.class_skills(game.me)[0])
+		if t > 17.6 and _once("guest_log"):
+			print("[autotest] гость: класс %s, %s %d, оружие %s, дары %s" % [Rules.class_id(game.me), Rules.res_kind(game.me),
+				int(game.me.get("res", 0)), str(game.me.equip.get("weapon", {}).get("base", "-")), str(game.me.get("gifts", []))])

@@ -512,6 +512,20 @@ def gear_part(base, layer, d, f, trim=None):
                 _trim(c, [(int(tcx - 2) + k, top + 3) for k in range(5)], trim)
             _trim(c, [(int(tcx), bot - 1)], trim or (230, 180, 80))
         return c.render()
+    if base == "jerkin":                         # кожаная куртка следопыта и разбойника
+        if layer not in ("torso", "arms_front", "arms_back"):
+            return None
+        c = _part(layer, d, f, m_torso=LEATHER, details=False)
+        if layer == "torso":
+            tcx, top, bot, r_sh, r_w = g["torso"]
+            belt = Mat((70, 46, 30))
+            for x in range(int(tcx - r_w - 1), int(tcx + r_w + 2)):
+                c.px(x, bot - 3, 9, (0, 0, 1), belt)
+            if d == 0:
+                for y in range(top + 2, bot - 3, 2):
+                    c.px(int(tcx), y, 9, (0, -0.2, 1), belt)       # шнуровка
+            _trim(c, [(int(tcx), bot - 3)], trim or (200, 170, 90))
+        return c.render()
     if base == "robe":
         if layer in ("torso", "arms_front", "arms_back"):
             c = _part(layer, d, f, m_torso=CLOTH, details=False)
@@ -594,7 +608,8 @@ def sheet(fn):
 
 # ---------------- weapons held in the hand ----------------
 
-WEAPONS = {"sword": (11.0, 1.4), "axe": (11.0, 0.0), "dagger": (7.0, 1.1), "abyss_blade": (12.5, 1.9)}
+WEAPONS = {"sword": (11.0, 1.4), "axe": (11.0, 0.0), "dagger": (7.0, 1.1), "abyss_blade": (12.5, 1.9),
+           "staff": (14.0, 0.0), "wand": (7.0, 0.0), "bow": (8.0, 0.0), "hammer": (11.0, 0.0)}
 TIER_INDEX = {None: 0, (90, 200, 90): 1, (80, 150, 255): 2, (190, 110, 255): 3, (255, 170, 40): 4, (255, 60, 90): 5}
 
 
@@ -617,7 +632,32 @@ def weapon_part(base, layer, d, f, trim):
     px, py = -uy, ux
     length, width = WEAPONS[base]
     c = Canvas(32, 32, pad=CELL_PAD)
-    if base == "axe":
+    if base in ("staff", "wand"):
+        wood = Mat(W.WOOD[1]) if tier < 2 else grip_m
+        tail = 5.0 if base == "staff" else 1.5
+        c.capsule(hx - ux * tail, hy - uy * tail, hx + ux * length, hy + uy * length, 0.8, wood, z=1)
+        orb = Mat(W.ORB[tier][2], emissive=True)
+        ex, ey = hx + ux * (length + 1.5), hy + uy * (length + 1.5)
+        if base == "staff":
+            c.capsule(ex - px * 2.2, ey - py * 2.2, ex + px * 2.2, ey + py * 2.2, 0.6, guard_m, z=2)
+            c.sphere(ex + ux * 0.8, ey + uy * 0.8, 2.0, 2.0, orb, z=4)
+        else:
+            c.sphere(ex, ey, 1.3, 1.6, orb, z=4)
+    elif base == "bow":
+        limb = Mat(W.WOOD[2]) if tier < 2 else blade_m
+        pts = []
+        for i in range(9):
+            t = -1 + i / 4
+            bulge = (1 - t * t) * 2.6
+            pts.append((hx + px * t * length + ux * bulge, hy + py * t * length + uy * bulge))
+        for a_, b_ in zip(pts, pts[1:]):
+            c.capsule(a_[0], a_[1], b_[0], b_[1], 0.7, limb, z=2)
+        c.capsule(pts[0][0], pts[0][1], pts[-1][0], pts[-1][1], 0.25, Mat((222, 214, 196)), z=1)
+    elif base == "hammer":
+        c.capsule(hx - ux * 2, hy - uy * 2, hx + ux * length, hy + uy * length, 0.8, grip_m, z=1)
+        hx2, hy2 = hx + ux * (length - 1), hy + uy * (length - 1)
+        c.blade(hx2 - px * 3.6, hy2 - py * 3.6, hx2 + px * 3.6, hy2 + py * 3.6, 3.2, blade_m, z=3, taper=0)
+    elif base == "axe":
         c.capsule(hx - ux * 2, hy - uy * 2, hx + ux * length, hy + uy * length, 0.8, grip_m, z=1)
         hx2, hy2 = hx + ux * (length - 2.5), hy + uy * (length - 2.5)
         side = 1 if (d != 1) else -1

@@ -11,7 +11,8 @@ const BOUNTIES := [
 	{"id": "golem1", "title": "Пробуждённый камень", "text": "Победи Каменного Голема", "kind": "golem", "need": 1, "reward": 900},
 ]
 # Что продаёт торговка (обычное качество) — по цене value()*3
-const SHOP_STOCK := ["potion", "sword", "dagger", "axe", "hood", "helm", "robe", "armor", "boots"]
+const SHOP_STOCK := ["potion", "sword", "axe", "dagger", "hammer", "staff", "wand", "bow", "helm", "hood", "armor",
+	"jerkin", "robe", "boots"]
 const SLOTS := ["weapon", "head", "body", "feet"]
 const SLOT_NAMES := {"weapon": "Оружие", "head": "Голова", "body": "Тело", "feet": "Ноги", "use": "Расходник", "currency": "Монеты"}
 
@@ -20,10 +21,15 @@ const BASES := {
 	"sword": {"name": "Меч", "slot": "weapon", "dmg": 5, "armor": 0, "icon": Vector2i(1, 5)},
 	"axe": {"name": "Топор", "slot": "weapon", "dmg": 7, "armor": 0, "icon": Vector2i(11, 5)},
 	"dagger": {"name": "Кинжал", "slot": "weapon", "dmg": 4, "armor": 0, "icon": Vector2i(6, 5)},
-	"helm": {"name": "Шлем", "slot": "head", "dmg": 0, "armor": 2, "icon": Vector2i(1, 7)},
-	"hood": {"name": "Капюшон", "slot": "head", "dmg": 1, "armor": 1, "icon": Vector2i(2, 7)},
-	"armor": {"name": "Кираса", "slot": "body", "dmg": 0, "armor": 4, "icon": Vector2i(5, 7)},
-	"robe": {"name": "Мантия", "slot": "body", "dmg": 2, "armor": 2, "icon": Vector2i(14, 7)},
+	"staff": {"name": "Посох", "slot": "weapon", "dmg": 6, "armor": 0, "icon": Vector2i(8, 6)},
+	"wand": {"name": "Жезл", "slot": "weapon", "dmg": 4, "armor": 0, "icon": Vector2i(9, 6)},
+	"bow": {"name": "Лук", "slot": "weapon", "dmg": 5, "armor": 0, "icon": Vector2i(3, 6)},
+	"hammer": {"name": "Боевой молот", "slot": "weapon", "dmg": 6, "armor": 0, "icon": Vector2i(11, 5)},
+	"helm": {"name": "Шлем", "slot": "head", "dmg": 0, "armor": 2, "kind": "plate", "icon": Vector2i(1, 7)},
+	"hood": {"name": "Капюшон", "slot": "head", "dmg": 1, "armor": 1, "kind": "leather", "icon": Vector2i(2, 7)},
+	"armor": {"name": "Кираса", "slot": "body", "dmg": 0, "armor": 4, "kind": "plate", "icon": Vector2i(5, 7)},
+	"jerkin": {"name": "Кожаная куртка", "slot": "body", "dmg": 1, "armor": 3, "kind": "leather", "icon": Vector2i(6, 7)},
+	"robe": {"name": "Мантия", "slot": "body", "dmg": 2, "armor": 2, "kind": "cloth", "icon": Vector2i(14, 7)},
 	"boots": {"name": "Сапоги", "slot": "feet", "dmg": 0, "armor": 1, "icon": Vector2i(3, 8)},
 	"abyss_blade": {"name": "Клинок Бездны", "slot": "weapon", "dmg": 30, "armor": 0, "unique": true, "icon": Vector2i(0, 3)},
 	"dawn_crown": {"name": "Корона Рассвета", "slot": "head", "dmg": 5, "armor": 12, "unique": true, "icon": Vector2i(9, 3)},
@@ -37,18 +43,24 @@ const COIN_NAMES := ["Платиновый Осколок", "Золотой", "�
 const COIN_SHORT := ["пл.", "зол.", "сер.", "мед."]
 const COIN_SHEET := preload("res://assets/custom/coins.png")     # медь, серебро, золото, платина
 # цена предметов в медяках (до множителя редкости)
-const VALUE := {"sword": 12, "axe": 15, "dagger": 9, "helm": 10, "hood": 6, "armor": 18, "robe": 12,
+const VALUE := {"sword": 12, "axe": 15, "dagger": 9, "staff": 14, "wand": 11, "bow": 13, "hammer": 15, "jerkin": 14,
+	"helm": 10, "hood": 6, "armor": 18, "robe": 12,
 	"boots": 6, "potion": 8, "abyss_blade": 6000, "dawn_crown": 6000}
 const RARITY_VALUE := [1, 3, 10, 40, 220, 1500]
 const COIN_DROPS := {"slime": [2, 7], "wolf": [8, 34], "golem": [450, 900]}
 const ICON_SHEET := preload("res://assets/icons/shikashi_icons.png")
 # Своё оружие (tools/art/gen_art.py): строки — тип, столбцы — редкость 0..5.
 const WEAPON_SHEET := preload("res://assets/custom/weapons.png")
-const WEAPON_ROWS := ["sword", "axe", "dagger", "abyss_blade"]
+const WEAPON_ROWS := ["sword", "axe", "dagger", "abyss_blade", "staff", "wand", "bow", "hammer"]
 const UI_ICONS := {"gold": Vector2i(10, 12), "bag": Vector2i(0, 10), "trade": Vector2i(13, 12)}
 const SLOT_ICONS := {"weapon": Vector2i(1, 5), "head": Vector2i(1, 7), "body": Vector2i(5, 7), "feet": Vector2i(3, 8)}
 var _icon_cache := {}
-const COMMON_BASES := ["sword", "axe", "dagger", "helm", "hood", "armor", "robe", "boots"]
+const COMMON_BASES := ["sword", "axe", "dagger", "staff", "wand", "bow", "hammer", "helm", "hood", "armor", "jerkin",
+	"robe", "boots"]
+# Как бьёт оружие: ближние стили — взмах, дальние (bolt, shot) — снаряд по прямой.
+const WEAPON_STYLE := {"sword": "slash", "abyss_blade": "slash", "axe": "chop", "hammer": "chop", "dagger": "stab",
+	"staff": "bolt", "wand": "bolt", "bow": "shot"}
+const KIND_NAMES := {"plate": "латы", "leather": "кожа", "cloth": "ткань"}
 const UNIQUE_BASES := ["abyss_blade", "dawn_crown"]
 
 const RARITY_NAMES := ["Обычный", "Необычный", "Редкий", "Эпический", "Легендарный", "Мифический"]
@@ -246,7 +258,11 @@ func tooltip(it: Dictionary) -> String:
 		lines.append("Клик в сумке — выпить")
 		lines.append("Цена у торговки: %s" % format_coins(value(it)))
 		return "\n".join(lines)
-	lines.append("%s · %s" % [RARITY_NAMES[int(it.rarity)], SLOT_NAMES[b.slot]])
+	lines.append("%s · %s%s" % [RARITY_NAMES[int(it.rarity)], SLOT_NAMES[b.slot],
+		(" · " + KIND_NAMES[b.kind]) if b.has("kind") else ""])
+	var who: String = Rules.classes_for(it.base)
+	if who != "":
+		lines.append("Для класса: " + who)
 	if it.shiny:
 		lines.append("★ Сияющий вариант (шанс 1 из 1000)")
 	if b.get("unique", false):
@@ -261,6 +277,16 @@ func tooltip(it: Dictionary) -> String:
 		lines.append("Серийный № %d в этом мире" % int(it.serial))
 	lines.append("Цена у торговки: %s" % format_coins(value(it)))
 	return "\n".join(lines)
+
+
+func style_of(it) -> String:
+	if it is Dictionary and not it.is_empty():
+		return WEAPON_STYLE.get(it.base, "slash")
+	return "slash"
+
+
+func kind_of(it: Dictionary) -> String:
+	return str(BASES[it.base].get("kind", ""))
 
 
 func total_dmg(equip: Dictionary) -> int:

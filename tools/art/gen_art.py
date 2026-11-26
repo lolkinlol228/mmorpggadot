@@ -1,7 +1,7 @@
 """Generates the game's own pixel art into assets/custom/.
 
 Run from anywhere:  python tools/art/gen_art.py [--preview PATH]
-weapons.png: rows = sword, axe, dagger, abyss_blade; columns = rarity 0..5; 32x32 cells.
+weapons.png: rows = sword, axe, dagger, abyss_blade, staff, wand, bow, hammer; columns = rarity 0..5; 32x32 cells.
 """
 import sys
 from pathlib import Path
@@ -14,7 +14,7 @@ import gear  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "assets" / "custom"
-WEAPON_ROWS = ["sword", "axe", "dagger", "abyss_blade"]
+WEAPON_ROWS = ["sword", "axe", "dagger", "abyss_blade", "staff", "wand", "bow", "hammer"]
 
 
 def build_weapons():
@@ -27,8 +27,10 @@ def build_weapons():
                 icon = weapons.axe(tier)
             elif name == "dagger":
                 icon = weapons.dagger(tier)
-            else:
+            elif name == "abyss_blade":
                 icon = weapons.abyss_blade()
+            else:
+                icon = getattr(weapons, name)(tier)
             sheet.alpha_composite(icon, (tier * 32, r * 32))
     return sheet
 
@@ -51,7 +53,8 @@ def build_enemies():
     return sheets
 
 
-GEAR_BASES = ["armor", "robe", "boots", "helm", "hood", "dawn_crown", "sword", "axe", "dagger", "abyss_blade"]
+GEAR_BASES = ["armor", "robe", "boots", "helm", "hood", "dawn_crown", "sword", "axe", "dagger", "abyss_blade",
+              "jerkin", "staff", "wand", "bow", "hammer"]
 
 
 def build_char(preview_path=None):

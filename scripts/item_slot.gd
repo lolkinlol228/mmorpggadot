@@ -103,5 +103,17 @@ static func make_item_tooltip(it: Dictionary) -> Control:
 			c = Items.SHINY_COLOR
 		elif lines[i].begins_with("Найден") or lines[i].begins_with("Серийный"):
 			c = Kit.DIM
+		elif lines[i].begins_with("Для класса"):
+			c = Color(0.6, 0.9, 0.55) if _fits_me(it) else Kit.RED
 		v.add_child(Kit.label(lines[i], 9, c))
+		if lines[i].begins_with("Для класса") and not _fits_me(it):
+			v.add_child(Kit.label("Чужой класс: только %d%% характеристик" % int(Rules.OFF_CLASS * 100), 9, Kit.RED))
 	return v
+
+
+## Свой ли предмет для героя этого игрока (в меню и вне игры — считаем своим).
+static func _fits_me(it: Dictionary) -> bool:
+	var scene = Engine.get_main_loop().current_scene
+	if scene == null or not ("me" in scene) or scene.me.is_empty():
+		return true
+	return Rules.fits(scene.me, it)

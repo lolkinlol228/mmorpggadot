@@ -5,7 +5,7 @@ extends Node2D
 const CharBaker := preload("res://scripts/char_baker.gd")
 const C := 48             # клетка листа; ноги на y=38
 # стиль удара по оружию: первый кадр в листе и длительность
-const STYLES := {"slash": [10, 0.24], "chop": [13, 0.34], "stab": [16, 0.16]}
+const STYLES := {"slash": [10, 0.24], "chop": [13, 0.34], "stab": [16, 0.16], "bolt": [16, 0.22], "shot": [16, 0.22]}
 const RUN_SPEED := 150.0   # быстрее — играем анимацию бега
 
 var pid := 0
@@ -35,10 +35,14 @@ var skill_id := ""        # эффект умения: вспышка в мом�
 var skill_t := 0.0
 var skill_dir := Vector2.RIGHT
 var auras := {}             # усиления, видимые всем: id -> секунд осталось
-const SKILL_COLORS := {"whirl": Color(0.85, 0.9, 1.0), "smash": Color(1.0, 0.7, 0.35), "mend": Color(0.45, 1.0, 0.5),
-	"second_wind": Color(0.55, 1.0, 0.75), "blink": Color(0.6, 0.75, 1.0), "stoneskin": Color(0.75, 0.7, 0.6),
-	"warcry": Color(1.0, 0.35, 0.25), "drain": Color(0.7, 0.2, 0.9), "pounce": Color(1.0, 0.85, 0.3),
-	"dirty_trick": Color(0.5, 0.95, 0.3)}
+# цвета аур (по имени баффа) и вспышек умений (по id умения; иначе — по виду умения)
+const SKILL_COLORS := {"stoneskin": Color(0.75, 0.7, 0.6), "warcry": Color(1.0, 0.35, 0.25),
+	"pounce": Color(1.0, 0.85, 0.3), "dirty_trick": Color(0.5, 0.95, 0.3), "barrier": Color(0.5, 0.75, 1.0),
+	"divine": Color(1.0, 0.92, 0.5),
+	"fireball": Color(1.0, 0.55, 0.2), "meteor": Color(1.0, 0.45, 0.15), "frost_nova": Color(0.6, 0.9, 1.0),
+	"blink": Color(0.6, 0.75, 1.0), "smite": Color(1.0, 0.95, 0.6), "holy_strike": Color(1.0, 0.92, 0.55),
+	"arrow_rain": Color(0.85, 0.75, 0.55), "assassinate": Color(0.6, 1.0, 0.4), "blade_fan": Color(0.8, 0.95, 0.8),
+	"strike": Color(0.9, 0.9, 1.0), "heal": Color(0.45, 1.0, 0.5), "buff": Color(1.0, 0.75, 0.4)}
 var sheet: Texture2D
 var _last_pos := Vector2.ZERO
 var label: Label
@@ -69,13 +73,7 @@ func set_equip(e: Dictionary) -> void:
 
 
 static func style_for(equip_: Dictionary) -> String:
-	var w = equip_.get("weapon")
-	if w is Dictionary:
-		if w.base == "axe":
-			return "chop"
-		if w.base == "dagger":
-			return "stab"
-	return "slash"
+	return Items.style_of(equip_.get("weapon"))
 
 
 func swing(dir: Vector2) -> void:
@@ -101,12 +99,12 @@ func skill(id: String, dir: Vector2) -> void:
 	skill_id = id
 	skill_t = 0.5
 	skill_dir = dir
-	var dur := float(Rules.SKILLS[id].get("dur", 0.0))
-	if dur > 0.5:
-		auras[id] = dur
-	if id in ["whirl", "smash"]:
+	var sk: Dictionary = Rules.SKILLS[id]
+	if sk.kind == "buff":
+		auras[str(sk.buff)] = float(sk.dur)
+	if sk.kind in ["strike", "bolt", "multi"]:
 		swing(dir)
-	elif id in ["mend", "second_wind", "warcry"]:
+	elif sk.kind in ["heal", "buff"]:
 		use()
 
 
@@ -143,7 +141,7 @@ func _process(delta: float) -> void:
 	skill_t = maxf(0.0, skill_t - delta)
 	for id in auras.keys():
 		auras[id] -= delta
-		if auras[id] <= 0.0 or (id == "dirty_trick" and swing_t > 0.0 and auras[id] < float(Rules.SKILLS[id].dur) - 0.3):
+		if auras[id] <= 0.0 or (id == "dirty_trick" and swing_t > 0.0 and auras[id] < 5.7):
 			auras.erase(id)
 	if not is_me:
 		position = position.lerp(target, minf(1.0, delta * 12.0))
@@ -227,50 +225,59 @@ func _draw() -> void:
 ## Умения: вспышка в момент применения и ауры усилений, пока они действуют.
 func _draw_skill_fx() -> void:
 	for id in auras:
-		var c: Color = SKILL_COLORS[id]
+		var c: Color = SKILL_COLORS.get(id, Color.WHITE)
 		var pulse := 0.5 + 0.5 * sin(t * 6.0)
 		match id:
 			"stoneskin":                               # каменные пластины вокруг
 				for i in 6:
 					var a := t * 0.8 + i * TAU / 6.0
 					draw_rect(Rect2(Vector2(cos(a) * 12.0 - 1.5, sin(a) * 5.0 - 12.0 - 1.5), Vector2(3, 3)), Color(c, 0.85))
-			"warcry", "drain", "pounce":                # огненная / тёмная / золотая аура у ног
+			"warcry", "pounce":                # огненная / тёмная / золотая аура у ног
 				draw_set_transform(Vector2(0, -1), 0, Vector2(1, 0.4))
 				draw_arc(Vector2.ZERO, 11.0 + pulse * 2.0, 0, TAU, 20, Color(c, 0.55), 1.5)
 				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 				for i in 4:
 					var a := i * TAU / 4.0 + t
 					draw_rect(Rect2(Vector2(cos(a) * 8.0, -fmod(t * 20.0 + i * 7.0, 28.0)), Vector2(1, 2)), Color(c, 0.8))
+			"barrier":                                 # голубой купол
+				draw_arc(Vector2(0, -14), 15.0 + pulse, PI, TAU, 18, Color(c, 0.6), 1.5)
+				draw_set_transform(Vector2(0, -1), 0, Vector2(1, 0.4))
+				draw_arc(Vector2.ZERO, 15.0, 0, TAU, 20, Color(c, 0.45), 1.0)
+				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+			"divine":                                  # золотое сияние
+				draw_circle(Vector2(0, -14), 14.0 + pulse * 2.0, Color(c, 0.22))
+				draw_arc(Vector2(0, -14), 14.0 + pulse * 2.0, 0, TAU, 20, Color(c, 0.8), 1.0)
 			"dirty_trick":                             # зелёный блеск на клинке
 				draw_circle(Vector2(8, -16), 1.5 + pulse, Color(c, 0.8))
-	if skill_t <= 0.0:
+	if skill_t <= 0.0 or not Rules.SKILLS.has(skill_id):
 		return
-	var c: Color = SKILL_COLORS.get(skill_id, Color.WHITE)
+	var sk: Dictionary = Rules.SKILLS[skill_id]
+	var c: Color = SKILL_COLORS.get(skill_id, SKILL_COLORS.get(str(sk.kind), Color.WHITE))
 	var k := 1.0 - skill_t / 0.5
-	match skill_id:
-		"whirl":
-			draw_set_transform(Vector2(0, -8), 0, Vector2(1, 0.55))
-			draw_arc(Vector2.ZERO, 14.0 + k * 34.0, t * 9.0, t * 9.0 + TAU * 0.8, 28, Color(c, 1.0 - k), 2.5)
-			draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-		"smash":
-			var hit := skill_dir * 28.0
-			draw_set_transform(hit, 0, Vector2(1, 0.45))
-			draw_arc(Vector2.ZERO, 6.0 + k * 30.0, 0, TAU, 24, Color(c, 1.0 - k), 2.5)
-			draw_arc(Vector2.ZERO, k * 18.0, 0, TAU, 18, Color(1, 1, 1, (1.0 - k) * 0.7), 1.0)
-			draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-		"mend", "second_wind":
+	match str(sk.kind):
+		"strike":
+			if float(sk.off) <= 0.0:                    # вокруг себя: вихрь, волна, веер
+				draw_set_transform(Vector2(0, -8), 0, Vector2(1, 0.55))
+				draw_arc(Vector2.ZERO, 10.0 + k * float(sk.r) * 0.8, t * 9.0, t * 9.0 + TAU * 0.8, 28, Color(c, 1.0 - k), 2.5)
+				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+			else:                                       # удар в точку впереди: ударная волна
+				draw_set_transform(skill_dir * float(sk.off), 0, Vector2(1, 0.45))
+				draw_arc(Vector2.ZERO, 6.0 + k * float(sk.r), 0, TAU, 24, Color(c, 1.0 - k), 2.5)
+				draw_arc(Vector2.ZERO, k * float(sk.r) * 0.6, 0, TAU, 18, Color(1, 1, 1, (1.0 - k) * 0.7), 1.0)
+				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+		"heal":
 			for i in 8:
 				var x := -10.0 + i * 3.0
 				var y := -6.0 - k * 30.0 - (i % 3) * 5.0
 				draw_rect(Rect2(x, y, 1, 3), Color(c, 1.0 - k))
 				draw_rect(Rect2(x - 1, y + 1, 3, 1), Color(c, 1.0 - k))
-		"blink":
-			draw_circle(Vector2(0, -12), 6.0 + k * 14.0, Color(c, (1.0 - k) * 0.5))
-		"warcry":
+		"buff":
 			for r in 3:
 				draw_arc(Vector2(0, -20), 8.0 + (k + r * 0.3) * 40.0, 0, TAU, 24, Color(c, maxf(0.0, 0.8 - k - r * 0.2)), 1.5)
+		"blink":
+			draw_circle(Vector2(0, -12), 6.0 + k * 14.0, Color(c, (1.0 - k) * 0.5))
 		_:
-			draw_circle(Vector2(0, -12), 4.0 + k * 16.0, Color(c, (1.0 - k) * 0.6))
+			draw_circle(skill_dir * 8.0 + Vector2(0, -12), 2.0 + k * 6.0, Color(c, (1.0 - k) * 0.7))
 
 
 func _draw_overlay() -> void:

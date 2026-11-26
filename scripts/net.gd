@@ -7,6 +7,8 @@ const MAX_PEERS := 7
 
 var player_name := "Герой"
 var player_look := {}
+var player_class := "warrior"      # выбран в создании героя (действует только для нового героя)
+var player_gifts: Array = []        # дары, выпавшие в создании героя
 var port := DEFAULT_PORT
 var last_error := ""
 var args_applied := false

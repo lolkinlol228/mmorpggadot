@@ -28,6 +28,7 @@ var zone_acc := 0.0
 var skills                   # панель умений
 var lvl_label: Label
 var xp_fill: ColorRect
+var res_fill: ColorRect
 
 
 func build() -> void:
@@ -81,6 +82,13 @@ func _build_portrait() -> void:
 	hp_fill.position = Vector2(2, 3)
 	hp_fill.size = Vector2(106, 5)
 	bar.add_child(hp_fill)
+	var res_bg := ColorRect.new()                      # ресурс класса: мана / ярость / энергия
+	res_bg.color = Color(0.05, 0.05, 0.07, 0.9)
+	res_bg.custom_minimum_size = Vector2(110, 4)
+	v.add_child(res_bg)
+	res_fill = ColorRect.new()
+	res_fill.size = Vector2(0, 4)
+	res_bg.add_child(res_fill)
 	var st_bg := ColorRect.new()                       # выносливость: бег и рывок
 	st_bg.color = Color(0.05, 0.05, 0.07, 0.9)
 	st_bg.custom_minimum_size = Vector2(110, 3)
@@ -252,6 +260,14 @@ func set_stamina(ratio: float) -> void:
 	st_fill.color = Color(0.85, 0.8, 0.3) if ratio > 0.3 else Color(0.9, 0.45, 0.25)
 
 
+func set_res(me: Dictionary) -> void:
+	var kind := Rules.res_kind(me)
+	res_fill.color = Rules.RES_COLORS[kind]
+	res_fill.size.x = 110.0 * clampf(float(me.get("res", 0)) / maxf(1.0, float(me.get("res_max", 100))), 0.0, 1.0)
+	res_fill.get_parent().tooltip_text = "%s %d / %d" % [Rules.RES_NAMES[kind], int(me.get("res", 0)), int(me.get("res_max", 100))]
+	skills.set_res(float(me.get("res", 0)))
+
+
 func refresh(me: Dictionary) -> void:
 	var ratio := clampf(float(me.hp) / float(me.max_hp), 0.0, 1.0)
 	hp_fill.size.x = 106.0 * ratio
@@ -269,6 +285,7 @@ func refresh(me: Dictionary) -> void:
 	lvl_label.add_theme_color_override("font_color", Kit.GOLD if int(me.get("points", 0)) > 0 else Color.WHITE)
 	xp_fill.size.x = 110.0 * clampf(float(me.get("xp", 0)) / Rules.xp_to_next(lvl), 0.0, 1.0)
 	skills.sync(me)
+	set_res(me)
 
 
 func add_line(text: String, color: Color) -> void:

@@ -1,18 +1,19 @@
 extends HBoxContainer
-## Панель умений: R — умение расы, 1 / 2 / 3 — общие (открываются с уровнем).
-## Затемнение сверху вниз — перезарядка, замок — ещё не открыто. Время считается по своим часам,
-## а хост присылает остаток в c_self, так что расхождение не накапливается.
+## Панель умений класса: 1–4 (открываются на 1, 2, 4 и 6 уровнях).
+## Затемнение сверху вниз — перезарядка, замок — ещё не открыто, синеватая иконка — не хватает ресурса.
+## Время считается по своим часам, а хост присылает остаток в c_self, так что расхождение не накапливается.
 
 const Kit := preload("res://scripts/ui_kit.gd")
 const ItemSlot := preload("res://scripts/item_slot.gd")
 
 var game
 var ids: Array = []
-var slots := {}             # id -> {slot, shade, timer, lock}
+var slots := {}             # id -> {slot, shade, timer, lock, icon, cost}
 var cd_until := {}          # id -> мс (свои часы)
 var cd_total := {}
 var buff_until := {}
-var race := ""
+var cls := ""
+var res := 0.0
 
 
 func build() -> void:
@@ -27,15 +28,12 @@ func build() -> void:
 	add_theme_constant_override("separation", 4)
 
 
-func _keys() -> Array:
-	return ["R", "1", "2", "3"]
-
-
 func sync(me: Dictionary) -> void:
-	var r := str(me.get("look", {}).get("race", "human"))
-	if r != race:
-		race = r
+	var c := Rules.class_id(me)
+	if c != cls:
+		cls = c
 		_rebuild(me)
+	res = float(me.get("res", 0))
 	var now := int(me.get("_recv", Time.get_ticks_msec()))     # когда пришли остатки от хоста
 	cd_until.clear()
 	for id in me.get("cds", {}):
@@ -47,13 +45,19 @@ func sync(me: Dictionary) -> void:
 		cd_total[id] = float(Rules.SKILLS[id].cd) * Rules.cd_mult(me)
 		slots[id].lock.visible = not Rules.skill_unlocked(me, id)
 		slots[id].slot.tooltip_text = _tip(id, me)
+		slots[id].cost = Rules.skill_cost(me, id)
+
+
+## Ресурс приходит чаще остального (c_res), чтобы подсветка «не хватает» была живой.
+func set_res(value: float) -> void:
+	res = value
 
 
 func _rebuild(me: Dictionary) -> void:
 	for ch in get_children():
 		ch.queue_free()
 	slots.clear()
-	ids = [Rules.race_skill(me)] + Rules.COMMON_SKILLS
+	ids = Rules.class_skills(me).duplicate()
 	for i in ids.size():
 		var id: String = ids[i]
 		var s = ItemSlot.new()
@@ -74,26 +78,30 @@ func _rebuild(me: Dictionary) -> void:
 		timer.size = Vector2(30, 10)
 		timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s.add_child(timer)
-		var lock := Kit.label("ур.%d" % int(Rules.SKILLS[id].get("lvl", 1)), 9, Kit.DIM)
+		var lock := Kit.label("ур.%d" % Rules.skill_level(me, id), 9, Kit.DIM)
 		lock.position = Vector2(0, 8)
 		lock.size = Vector2(30, 10)
 		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s.add_child(lock)
-		var k := Kit.label(_keys()[i], 9, Kit.GOLD)
+		var k := Kit.label(Rules.SKILL_KEYS[i], 9, Kit.GOLD)
 		k.position = Vector2(2, 18)
 		s.add_child(k)
 		add_child(s)
-		slots[id] = {"slot": s, "shade": shade, "timer": timer, "lock": lock, "icon": ic}
+		slots[id] = {"slot": s, "shade": shade, "timer": timer, "lock": lock, "icon": ic, "cost": Rules.skill_cost(me, id)}
 
 
 func _tip(id: String, me: Dictionary) -> String:
 	var sk: Dictionary = Rules.SKILLS[id]
-	var head := "%s  —  перезарядка %.0f с" % [sk.name, float(sk.cd) * Rules.cd_mult(me)]
-	if id == Rules.race_skill(me):
-		head += "\nУмение расы: %s" % Rules.race_of(me).name
-	elif not Rules.skill_unlocked(me, id):
-		head += "\nОткроется на %d уровне" % int(sk.lvl)
-	return head + "\n" + str(sk.desc)
+	var lines := PackedStringArray(["%s  —  перезарядка %.0f с" % [sk.name, float(sk.cd) * Rules.cd_mult(me)]])
+	var cost := Rules.skill_cost(me, id)
+	if cost > 0:
+		lines.append("%s: %d" % [Rules.RES_NAMES[Rules.res_kind(me)], cost])
+	if not Rules.skill_unlocked(me, id):
+		lines.append("Откроется на %d уровне" % Rules.skill_level(me, id))
+	if not Rules.has_class_weapon(me):
+		lines.append("Нужно оружие своего класса")
+	lines.append(str(sk.desc))
+	return "\n".join(lines)
 
 
 func cd_left(id: String) -> float:
@@ -115,4 +123,10 @@ func _process(_delta: float) -> void:
 		var s: Dictionary = slots[id]
 		s.shade.size.y = 24.0 * clampf(left / total, 0.0, 1.0)
 		s.timer.text = ("%d" % ceili(left)) if left > 0.0 and not s.lock.visible else ""
-		s.icon.modulate = Color(0.45, 0.45, 0.5) if s.lock.visible else (Color(1.4, 1.3, 1.0) if has_buff(id) else Color.WHITE)
+		var buff := str(Rules.SKILLS[id].get("buff", id))
+		if s.lock.visible:
+			s.icon.modulate = Color(0.45, 0.45, 0.5)
+		elif res < float(s.cost):
+			s.icon.modulate = Color(0.5, 0.6, 1.0)
+		else:
+			s.icon.modulate = Color(1.4, 1.3, 1.0) if has_buff(buff) else Color.WHITE

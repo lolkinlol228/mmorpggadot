@@ -51,7 +51,7 @@ var dust_acc := 0.0
 const SPRINT := 1.55
 const DASH_SPEED := 3.3
 const DASH_COST := 30.0
-const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220}
+const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot": 500}
 
 
 func _ready() -> void:
@@ -91,7 +91,7 @@ func _ready() -> void:
 	ui.game = self
 	add_child(ui)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
-	var char_data := Save.load_char(Net.player_name)
+	var char_data := Save.load_char(Net.player_name, Net.player_class, Net.player_gifts)
 	if not Net.player_look.is_empty():
 		char_data.look = Net.player_look
 	if is_host:
@@ -105,7 +105,7 @@ func _ready() -> void:
 	else:
 		rpc_id(1, "h_register", char_data)
 	ui.add_feed("WASD — ходьба · Shift — бег · Пробел — рывок · ЛКМ — удар · E — взаимодействие · I — сумка", GREY)
-	ui.add_feed("R — умение расы · 1 2 3 — умения (с уровнем) · C — герой и характеристики", GREY)
+	ui.add_feed("1 2 3 4 — умения класса (открываются с уровнем) · C — герой, класс и дары", GREY)
 	_maybe_autotest()
 
 
@@ -202,9 +202,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				use_spot()
 			KEY_C:
 				ui.charwin.toggle()
-			KEY_R, KEY_1, KEY_2, KEY_3:
+			KEY_1, KEY_2, KEY_3, KEY_4:
 				var ids: Array = ui.hud.skills.ids
-				var i: int = {KEY_R: 0, KEY_1: 1, KEY_2: 2, KEY_3: 3}[event.physical_keycode]
+				var i: int = {KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_4: 3}[event.physical_keycode]
 				if i < ids.size():
 					use_skill(ids[i])
 			KEY_ENTER, KEY_KP_ENTER:
@@ -249,7 +249,7 @@ func attack() -> void:
 	if me.is_empty() or int(me.hp) <= 0:
 		return
 	var now := Time.get_ticks_msec()
-	var style: String = PlayerView.style_for(me.equip)
+	var style: String = Items.style_of(me.equip.get("weapon"))
 	if now - last_attack < int(float(ATTACK_CD[style]) / Rules.attack_speed(me)):
 		return
 	last_attack = now
@@ -268,9 +268,18 @@ func use_skill(id: String) -> void:
 		return
 	var bar = ui.hud.skills
 	if not Rules.skill_unlocked(me, id):
-		ui.add_feed("%s откроется на %d уровне." % [Rules.SKILLS[id].name, int(Rules.SKILLS[id].lvl)], GREY)
+		ui.add_feed("%s откроется на %d уровне." % [Rules.SKILLS[id].name, Rules.skill_level(me, id)], GREY)
+		return
+	if not Rules.has_class_weapon(me):
+		var names := PackedStringArray()
+		for b in Rules.class_of(me).weapons:
+			names.append(Items.BASES[b].name.to_lower())
+		ui.add_feed("Умения класса работают только со своим оружием: %s." % ", ".join(names), GREY)
 		return
 	if bar.cd_left(id) > 0.0:
+		return
+	if float(me.get("res", 0)) < Rules.skill_cost(me, id):
+		ui.add_feed("Не хватает: %s." % Rules.RES_NAMES[Rules.res_kind(me)].to_lower(), GREY)
 		return
 	bar.start_cd(id)
 	if id == "blink":
@@ -280,8 +289,6 @@ func use_skill(id: String) -> void:
 		fx.burst(my_pos + Vector2(0, -12), Color(0.8, 0.9, 1.0), 14, false)
 		if not is_host:
 			rpc_id(1, "h_pos", my_pos, my_facing)
-	if id == "second_wind":
-		stamina = 100.0
 	_to_host("h_skill", [id, my_facing])
 
 
@@ -451,11 +458,33 @@ func c_skill_fx(pid: int, id: String, dir: Vector2) -> void:
 	var v = player_views.get(pid)
 	if v:
 		v.skill(id, dir)
-		Sfx.play_at({"mend": "shimmer", "second_wind": "shimmer", "warcry": "bell", "blink": "swing"}.get(id, "swing"), v.position, my_pos)
-		if id == "smash":
-			fx.dust(v.position + dir * 28.0, 12)
+		Sfx.play_at({"heal": "shimmer", "buff": "bell", "blink": "swing", "bolt": "swing", "multi": "swing"}.get(str(Rules.SKILLS[id].kind), "swing"), v.position, my_pos)
+		var sk: Dictionary = Rules.SKILLS[id]
+		if sk.kind == "strike" and float(sk.mult) >= 2.0:     # тяжёлые удары поднимают пыль и трясут камеру
+			fx.dust(v.position + dir * float(sk.off), 12)
 			if pid == my_id:
 				fx.shake = 0.25
+
+## Ресурс класса (мана / ярость / энергия) — шлётся чаще, чем всё остальное о себе.
+@rpc("authority", "call_remote", "unreliable_ordered")
+func c_res(value: int, max_value: int) -> void:
+	if me.is_empty():
+		return
+	me.res = value
+	me.res_max = max_value
+	ui.hud.set_res(me)
+
+
+## Видимый снаряд (стрела, шар, луч). Попадание уже посчитано хостом.
+@rpc("authority", "call_remote", "reliable")
+func c_shot(from: Vector2, to: Vector2, kind: String, boom: float) -> void:
+	var pr = preload("res://scripts/projectile.gd").new()
+	pr.from = from
+	pr.to = to
+	pr.kind = kind
+	pr.boom = boom
+	pr.game = self
+	add_child(pr)
 
 @rpc("authority", "call_remote", "reliable")
 func c_levelup(pid: int, level: int) -> void:
@@ -499,7 +528,8 @@ func c_self(priv: Dictionary) -> void:
 		ui.add_feed("Новые очки характеристик! Открой окно героя: C", Color(1, 0.85, 0.4))
 	Save.store_char({"name": Net.player_name, "coins": me.coins, "inv": me.inv, "equip": me.equip,
 		"look": me.get("look", {}), "bank": me.get("bank", []), "bounties": me.get("bounties", {}),
-		"level": me.get("level", 1), "xp": me.get("xp", 0), "points": me.get("points", 0), "stats": me.get("stats", {})})
+		"level": me.get("level", 1), "xp": me.get("xp", 0), "points": me.get("points", 0), "stats": me.get("stats", {}),
+		"cls": me.get("cls", "warrior"), "gifts": me.get("gifts", [])})
 
 
 @rpc("authority", "call_remote", "reliable")

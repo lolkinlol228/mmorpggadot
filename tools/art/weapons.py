@@ -218,3 +218,130 @@ def abyss_blade():
     img = sword(5, length_bonus=2)
     put(img, 9, 21, (255, 230, 120, 255))
     return img
+
+
+# ---------------- оружие классов: посох, жезл, лук, молот ----------------
+
+WOOD = [(58, 38, 26), (92, 62, 40), (128, 92, 60), (160, 122, 84)]
+ORB = [   # навершие посоха / кристалл жезла по редкости: тёмный, средний, светлый, блик
+    [(70, 70, 84), (110, 112, 128), (150, 152, 168), (200, 204, 216)],
+    [(30, 90, 50), (60, 150, 80), (120, 210, 130), (210, 255, 210)],
+    [(30, 60, 150), (60, 110, 220), (120, 170, 255), (220, 240, 255)],
+    [(70, 30, 120), (130, 70, 200), (190, 130, 255), (240, 220, 255)],
+    [(160, 80, 10), (230, 150, 40), (255, 210, 100), (255, 250, 220)],
+    [(90, 0, 20), (180, 20, 50), (255, 80, 110), (255, 210, 220)],
+]
+
+
+def _shaft(img, T, tier, ox, oy, u0, u1, half=0.95):
+    ramp = WOOD if tier in (0, 1) else [T["grip"][0], T["grip"][1], WOOD[2], WOOD[3]]
+    for y in range(img.height):
+        for x in range(img.width):
+            u, v = _uv(x, y, ox, oy)
+            if u0 <= u <= u1 and abs(v) <= half:
+                img.putpixel((x, y), _ramp(ramp, 1 if v < 0 else 0))
+
+
+def _orb(img, cx, cy, r, ramp):
+    for y in range(img.height):
+        for x in range(img.width):
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            d = (dx * dx + dy * dy) ** 0.5
+            if d <= r:
+                k = 3 if (dx < -r * 0.2 and dy < -r * 0.2 and d < r * 0.55) else (2 if dx + dy < 0 else (1 if d < r * 0.8 else 0))
+                img.putpixel((x, y), _ramp(ramp, k))
+
+
+def _finish(img, T, tier):
+    if T["glow"]:
+        _halo(img, T["glow"], 170 if tier >= 4 else 110, wide=tier >= 4)
+    return img
+
+
+def staff(tier: int, size=32):
+    """Длинный посох, на конце — светящаяся сфера в оправе."""
+    T = TIERS[tier]
+    img = blank(size, size)
+    ox, oy = 4.0, 28.0
+    _shaft(img, T, tier, ox, oy, -1.0, 24.0)
+    for k in (8.0, 16.0):                       # обмотки
+        for y in range(size):
+            for x in range(size):
+                u, v = _uv(x, y, ox, oy)
+                if abs(u - k) <= 0.7 and abs(v) <= 1.2:
+                    img.putpixel((x, y), _ramp(T["guard"], 1))
+    cu = 26.0
+    cx, cy = ox + cu / SQ2, oy - cu / SQ2
+    for s in (-1, 1):                           # рожки оправы
+        put(img, round(cx + s * 3), round(cy + 1), T["guard"][1] + (255,))
+        put(img, round(cx + s * 3), round(cy), T["guard"][2] + (255,))
+    outline(img)
+    _orb(img, cx, cy, 3.0 + (0.5 if tier >= 3 else 0.0), ORB[tier])
+    return _finish(img, T, tier)
+
+
+def wand(tier: int, size=32):
+    """Короткий жезл с кристаллом."""
+    T = TIERS[tier]
+    img = blank(size, size)
+    ox, oy = 8.0, 24.0
+    _shaft(img, T, tier, ox, oy, -1.0, 13.0, half=0.8)
+    for y in range(size):
+        for x in range(size):
+            u, v = _uv(x, y, ox, oy)
+            if 13.0 <= u <= 19.5 and abs(v) <= max(0.0, 2.2 - abs(u - 15.5) * 0.6):   # ромб кристалла
+                img.putpixel((x, y), _ramp(ORB[tier], 3 if v < -0.6 else (2 if u < 15.5 else 1)))
+            elif 11.5 <= u < 13.0 and abs(v) <= 2.0:
+                img.putpixel((x, y), _ramp(T["guard"], 2 if v < 0 else 1))
+    outline(img)
+    return _finish(img, T, tier)
+
+
+def bow(tier: int, size=32):
+    """Лук по диагонали: изогнутые плечи и тетива."""
+    T = TIERS[tier]
+    img = blank(size, size)
+    ox, oy = 4.0, 28.0
+    L = 31.0
+    ramp = WOOD if tier in (0, 1) else T["blade"]
+    for y in range(size):
+        for x in range(size):
+            u, v = _uv(x, y, ox, oy)
+            if 0.0 <= u <= L:
+                t = (u - L / 2) / (L / 2)
+                arc = 5.2 * (1 - t * t)               # плечи выгибаются в сторону −v
+                if abs(-v - arc) <= 0.95 - abs(t) * 0.25:
+                    img.putpixel((x, y), _ramp(ramp, 2 if v > -arc else 1))
+                if abs(t) < 0.12 and abs(-v - arc) <= 1.5:
+                    img.putpixel((x, y), _ramp(T["grip"], 1))     # рукоять
+    outline(img)
+    for i in range(1, 30):                         # тетива поверх обводки
+        u = 0.6 + i * (L - 1.2) / 30
+        put(img, round(ox + u / SQ2), round(oy - u / SQ2), (220, 214, 196, 255))
+    if T["gem"]:
+        cu, cv = L / 2, -6.0
+        _gem(img, round(ox + (cu + cv) / SQ2) - 1, round(oy + (-cu + cv) / SQ2) - 1, T["gem"], big=tier >= 4)
+    return _finish(img, T, tier)
+
+
+def hammer(tier: int, size=32):
+    """Боевой молот паладина: рукоять и тяжёлое оголовье."""
+    T = TIERS[tier]
+    img = blank(size, size)
+    ox, oy = 6.0, 26.0
+    _shaft(img, T, tier, ox, oy, -1.0, 19.0)
+    hu = 19.5
+    for y in range(size):
+        for x in range(size):
+            u, v = _uv(x, y, ox, oy)
+            if abs(u - hu) <= 3.2 and abs(v) <= 5.5 + tier * 0.2:
+                k = 3 if (abs(v) > 4.6 and u < hu) else (2 if u < hu else 1)
+                if T.get("rust") and (x * 5 + y * 3) % 5 == 0:
+                    k = 0
+                img.putpixel((x, y), _ramp(T["blade"], k))
+            elif -2.2 <= u < -0.6 and abs(v) <= 1.5:
+                img.putpixel((x, y), _ramp(T["guard"], 1))
+    outline(img)
+    if T["gem"]:
+        _gem(img, round(ox + hu / SQ2) - 1, round(oy - hu / SQ2) - 1, T["gem"], big=tier >= 4)
+    return _finish(img, T, tier)

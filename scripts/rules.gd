@@ -1,65 +1,197 @@
 extends Node
-## Правила развития героя: характеристики, бонусы рас, опыт и уровни, умения.
-## Хост считает по этим формулам урон, здоровье и перезарядки; клиент — только показывает.
+## Правила развития героя: характеристики, расы, классы, умения, ресурсы (мана / ярость / энергия),
+## штраф за чужую экипировку. Хост считает по этим формулам; клиент — только показывает.
 
 const STATS := ["str", "agi", "vit", "spi"]
 const STAT_NAMES := {"str": "Сила", "agi": "Ловкость", "vit": "Живучесть", "spi": "Дух"}
 const STAT_HELP := {"str": "+0,6 к урону за очко", "agi": "криты и скорость атаки",
-	"vit": "+6 здоровья, быстрее выносливость", "spi": "короче перезарядка умений, сильнее лечение"}
+	"vit": "+6 здоровья, быстрее выносливость", "spi": "мана, короче перезарядка умений, сильнее лечение"}
 const BASE_STAT := 5
 const POINTS_PER_LEVEL := 3
 const XP_FOR_KILL := {"slime": 8, "wolf": 18, "golem": 250}
 const SHARE_XP_RADIUS := 320.0      # опыт получают все союзники рядом — играть вместе выгодно
+const OFF_CLASS := 0.5              # чужое оружие и броня дают только половину характеристик
+const SKILL_LEVELS := [1, 2, 4, 6]  # с какого уровня открываются 1-е…4-е умения класса
+const SKILL_KEYS := ["1", "2", "3", "4"]
 
+# Раса — внешность, небольшой бонус к характеристикам и пассивка. Умения даёт класс.
 const RACES := {
-	"human": {"name": "Человек", "stats": {"str": 1, "agi": 1, "vit": 1, "spi": 1}, "skill": "second_wind",
-		"passive": "Опыт +10%", "xp_mult": 1.1},
-	"elf": {"name": "Эльф", "stats": {"agi": 2, "spi": 2}, "skill": "blink",
-		"passive": "Шанс крита +5%", "crit": 0.05},
-	"dwarf": {"name": "Дварф", "stats": {"vit": 3, "str": 1}, "skill": "stoneskin",
-		"passive": "Броня +3", "armor": 3},
-	"orc": {"name": "Орк", "stats": {"str": 3, "vit": 1}, "skill": "warcry",
-		"passive": "Урон +10%", "dmg_mult": 1.1},
-	"undead": {"name": "Нежить", "stats": {"vit": 2, "spi": 2}, "skill": "drain",
-		"passive": "Регенерация здоровья ×2", "regen_mult": 2.0},
-	"felin": {"name": "Кошколюд", "stats": {"agi": 3, "str": 1}, "skill": "pounce",
-		"passive": "Скорость бега +10%", "speed_mult": 1.1},
-	"goblin": {"name": "Гоблин", "stats": {"agi": 2, "spi": 2}, "skill": "dirty_trick",
-		"passive": "Монет с врагов +30%", "coin_mult": 1.3},
+	"human": {"name": "Человек", "stats": {"str": 1, "agi": 1, "vit": 1, "spi": 1}, "passive": "Опыт +10%", "xp_mult": 1.1},
+	"elf": {"name": "Эльф", "stats": {"agi": 2, "spi": 2}, "passive": "Шанс крита +5%", "crit": 0.05},
+	"dwarf": {"name": "Дварф", "stats": {"vit": 3, "str": 1}, "passive": "Броня +3", "armor": 3},
+	"orc": {"name": "Орк", "stats": {"str": 3, "vit": 1}, "passive": "Урон +10%", "dmg_mult": 1.1},
+	"undead": {"name": "Нежить", "stats": {"vit": 2, "spi": 2}, "passive": "Регенерация здоровья ×2", "regen_mult": 2.0},
+	"felin": {"name": "Кошколюд", "stats": {"agi": 3, "str": 1}, "passive": "Скорость бега +10%", "speed_mult": 1.1},
+	"goblin": {"name": "Гоблин", "stats": {"agi": 2, "spi": 2}, "passive": "Монет с врагов +30%", "coin_mult": 1.3},
 }
 
-# icon — клетка в листе Shikashi (ряд 3 — «особые приёмы»); lvl — с какого уровня доступно
-const SKILLS := {
-	"whirl": {"name": "Вихрь", "icon": Vector2i(1, 3), "cd": 8.0, "lvl": 2, "key": "1",
-		"desc": "Удар по всем врагам вокруг: 120% урона"},
-	"smash": {"name": "Сокрушение", "icon": Vector2i(13, 3), "cd": 6.0, "lvl": 3, "key": "2",
-		"desc": "Мощный удар вперёд: 250% урона"},
-	"mend": {"name": "Перевязка", "icon": Vector2i(6, 3), "cd": 20.0, "lvl": 4, "key": "3",
-		"desc": "Лечит 30 + Дух×3 здоровья"},
-	"second_wind": {"name": "Второе дыхание", "icon": Vector2i(5, 3), "cd": 40.0, "dur": 1.0,
-		"desc": "+30 здоровья и полная выносливость"},
-	"blink": {"name": "Лунный шаг", "icon": Vector2i(14, 3), "cd": 10.0, "dur": 0.4,
-		"desc": "Мгновенный перенос на 90 шагов вперёд"},
-	"stoneskin": {"name": "Каменная кожа", "icon": Vector2i(8, 3), "cd": 30.0, "dur": 6.0,
-		"desc": "6 сек: получаемый урон −60%"},
-	"warcry": {"name": "Боевой клич", "icon": Vector2i(9, 3), "cd": 35.0, "dur": 6.0,
-		"desc": "6 сек: урон +40% тебе и союзникам рядом"},
-	"drain": {"name": "Похищение жизни", "icon": Vector2i(0, 3), "cd": 25.0, "dur": 8.0,
-		"desc": "8 сек: 35% нанесённого урона лечит тебя"},
-	"pounce": {"name": "Кошачья прыть", "icon": Vector2i(12, 3), "cd": 25.0, "dur": 5.0,
-		"desc": "5 сек: скорость +40%, рывки без выносливости"},
-	"dirty_trick": {"name": "Подлый приём", "icon": Vector2i(3, 3), "cd": 15.0, "dur": 6.0,
-		"desc": "Следующий удар в течение 6 сек — крит ×3"},
+const RES_NAMES := {"mana": "Мана", "rage": "Ярость", "energy": "Энергия"}
+const RES_COLORS := {"mana": Color(0.35, 0.55, 1.0), "rage": Color(0.9, 0.25, 0.2), "energy": Color(0.95, 0.8, 0.25)}
+
+# weapons — своё оружие (умения класса работают только с ним), armor — свой тип брони.
+const CLASSES := {
+	"warrior": {"name": "Воин", "role": "Танк: принимает удары на себя, копит ярость в бою",
+		"weapons": ["sword", "axe"], "armor": ["plate"], "res": "rage", "stats": {"str": 2, "vit": 2}, "hp_mult": 1.15,
+		"skills": ["smash", "whirl", "warcry", "bulwark"], "kit": ["sword", "armor"]},
+	"mage": {"name": "Маг", "role": "Урон по площади и замедление издалека",
+		"weapons": ["staff"], "armor": ["cloth"], "res": "mana", "stats": {"spi": 3, "agi": 1}, "hp_mult": 0.9,
+		"skills": ["fireball", "frost_nova", "blink", "meteor"], "kit": ["staff", "robe"]},
+	"priest": {"name": "Жрец", "role": "Лечит и защищает союзников",
+		"weapons": ["wand", "staff"], "armor": ["cloth"], "res": "mana", "stats": {"spi": 3, "vit": 1}, "hp_mult": 0.95,
+		"skills": ["holy_light", "smite", "barrier", "renew"], "kit": ["wand", "robe"]},
+	"ranger": {"name": "Следопыт", "role": "Урон из лука с дальней дистанции",
+		"weapons": ["bow"], "armor": ["leather"], "res": "energy", "stats": {"agi": 3, "str": 1}, "hp_mult": 1.0,
+		"skills": ["power_shot", "volley", "hunter_pace", "arrow_rain"], "kit": ["bow", "jerkin"]},
+	"rogue": {"name": "Разбойник", "role": "Криты, скорость и добивание",
+		"weapons": ["dagger", "sword"], "armor": ["leather"], "res": "energy", "stats": {"agi": 3, "str": 1}, "hp_mult": 0.95,
+		"skills": ["dirty_trick", "pounce", "blade_fan", "assassinate"], "kit": ["dagger", "jerkin"]},
+	"paladin": {"name": "Паладин", "role": "Латы и молот: держит удар и лечит",
+		"weapons": ["hammer", "sword"], "armor": ["plate"], "res": "mana", "stats": {"str": 2, "spi": 2}, "hp_mult": 1.1,
+		"skills": ["holy_strike", "lay_hands", "valor_aura", "divine_shield"], "kit": ["hammer", "armor"]},
 }
-const COMMON_SKILLS := ["whirl", "smash", "mend"]
+
+# Умения — данные, хост исполняет их по полю kind:
+#   strike — удар по кругу: off (смещение вперёд), r (радиус), mult, crit
+#   bolt   — снаряд по прямой: range, mult, aoe (радиус взрыва), crit
+#   multi  — веер снарядов: count, spread (радианы между снарядами), range, mult
+#   heal   — лечение: target self | lowest (самый раненый рядом) | allies (все рядом), base, spi (×Дух), radius
+#   buff   — усиление: buff (имя), dur, allies (радиус; 0 — только себе)
+#   blink  — перенос вперёд (двигает клиент)
+# icon — клетка в листе Shikashi (ряд 3 — «особые приёмы»), cost — расход ресурса класса.
+const SKILLS := {
+	# воин
+	"smash": {"name": "Сокрушение", "icon": Vector2i(11, 3), "cd": 6.0, "cost": 15, "kind": "strike",
+		"off": 28.0, "r": 30.0, "mult": 2.5, "crit": 0.1, "desc": "Мощный удар вперёд: 250% урона"},
+	"whirl": {"name": "Вихрь", "icon": Vector2i(4, 3), "cd": 8.0, "cost": 25, "kind": "strike",
+		"off": 0.0, "r": 46.0, "mult": 1.2, "crit": 0.0, "desc": "Удар по всем врагам вокруг: 120% урона"},
+	"warcry": {"name": "Боевой клич", "icon": Vector2i(6, 3), "cd": 35.0, "cost": 30, "kind": "buff",
+		"buff": "warcry", "dur": 6.0, "allies": 120.0, "desc": "6 сек: урон +40% тебе и союзникам рядом"},
+	"bulwark": {"name": "Глухая оборона", "icon": Vector2i(7, 3), "cd": 30.0, "cost": 0, "kind": "buff",
+		"buff": "stoneskin", "dur": 6.0, "allies": 0.0, "desc": "6 сек: получаемый урон −60%"},
+	# маг
+	"fireball": {"name": "Огненный шар", "icon": Vector2i(9, 3), "cd": 2.5, "cost": 12, "kind": "bolt",
+		"range": 220.0, "mult": 2.0, "aoe": 22.0, "crit": 0.0, "fx": "fire", "desc": "Шар огня: 200% урона и взрыв"},
+	"frost_nova": {"name": "Ледяная волна", "icon": Vector2i(1, 3), "cd": 10.0, "cost": 20, "kind": "strike",
+		"off": 0.0, "r": 56.0, "mult": 1.0, "crit": 0.0, "slow": 3.0, "desc": "Холод вокруг: 100% урона, враги замедлены на 3 сек"},
+	"blink": {"name": "Скачок", "icon": Vector2i(14, 3), "cd": 10.0, "cost": 10, "kind": "blink",
+		"desc": "Мгновенный перенос на 90 шагов вперёд"},
+	"meteor": {"name": "Метеор", "icon": Vector2i(2, 4), "cd": 30.0, "cost": 40, "kind": "strike",
+		"off": 70.0, "r": 44.0, "mult": 4.0, "crit": 0.05, "desc": "Камень с неба впереди: 400% урона по площади"},
+	# жрец
+	"holy_light": {"name": "Святой свет", "icon": Vector2i(5, 3), "cd": 4.0, "cost": 14, "kind": "heal",
+		"target": "lowest", "base": 25, "spi": 3.0, "radius": 160.0, "desc": "Лечит самого раненого рядом: 25 + Дух×3"},
+	"smite": {"name": "Кара", "icon": Vector2i(15, 3), "cd": 2.5, "cost": 8, "kind": "bolt",
+		"range": 200.0, "mult": 1.6, "aoe": 0.0, "crit": 0.0, "fx": "holy", "desc": "Луч света: 160% урона"},
+	"barrier": {"name": "Щит веры", "icon": Vector2i(8, 3), "cd": 25.0, "cost": 25, "kind": "buff",
+		"buff": "barrier", "dur": 6.0, "allies": 140.0, "desc": "6 сек: союзники рядом получают на 50% меньше урона"},
+	"renew": {"name": "Обновление", "icon": Vector2i(12, 3), "cd": 30.0, "cost": 40, "kind": "heal",
+		"target": "allies", "base": 40, "spi": 4.0, "radius": 160.0, "desc": "Лечит всех союзников рядом: 40 + Дух×4"},
+	# следопыт
+	"power_shot": {"name": "Меткий выстрел", "icon": Vector2i(3, 3), "cd": 6.0, "cost": 30, "kind": "bolt",
+		"range": 300.0, "mult": 2.6, "aoe": 0.0, "crit": 0.15, "fx": "arrow", "desc": "Дальний выстрел: 260% урона, +15% крит"},
+	"volley": {"name": "Залп", "icon": Vector2i(2, 3), "cd": 8.0, "cost": 35, "kind": "multi",
+		"count": 3, "spread": 0.3, "range": 240.0, "mult": 1.0, "fx": "arrow", "desc": "Три стрелы веером по 100% урона"},
+	"hunter_pace": {"name": "Поступь охотника", "icon": Vector2i(13, 3), "cd": 25.0, "cost": 20, "kind": "buff",
+		"buff": "pounce", "dur": 5.0, "allies": 0.0, "desc": "5 сек: скорость +40%, рывки без выносливости"},
+	"arrow_rain": {"name": "Град стрел", "icon": Vector2i(1, 3), "cd": 22.0, "cost": 50, "kind": "strike",
+		"off": 110.0, "r": 50.0, "mult": 2.2, "crit": 0.0, "desc": "Град стрел впереди: 220% урона по площади"},
+	# разбойник
+	"dirty_trick": {"name": "Подлый приём", "icon": Vector2i(0, 3), "cd": 12.0, "cost": 25, "kind": "buff",
+		"buff": "dirty_trick", "dur": 6.0, "allies": 0.0, "desc": "Следующий удар в течение 6 сек — крит ×3"},
+	"pounce": {"name": "Прыть", "icon": Vector2i(10, 3), "cd": 20.0, "cost": 20, "kind": "buff",
+		"buff": "pounce", "dur": 5.0, "allies": 0.0, "desc": "5 сек: скорость +40%, рывки без выносливости"},
+	"blade_fan": {"name": "Веер клинков", "icon": Vector2i(4, 3), "cd": 9.0, "cost": 35, "kind": "strike",
+		"off": 0.0, "r": 40.0, "mult": 1.5, "crit": 0.1, "desc": "Клинки во все стороны: 150% урона"},
+	"assassinate": {"name": "Смертельный удар", "icon": Vector2i(3, 3), "cd": 18.0, "cost": 50, "kind": "strike",
+		"off": 26.0, "r": 24.0, "mult": 4.0, "crit": 0.25, "execute": 0.3,
+		"desc": "400% урона вперёд, вдвое больше по врагу ниже 30% здоровья"},
+	# паладин
+	"holy_strike": {"name": "Удар света", "icon": Vector2i(15, 3), "cd": 5.0, "cost": 10, "kind": "strike",
+		"off": 28.0, "r": 28.0, "mult": 1.8, "crit": 0.0, "leech": 0.2, "desc": "180% урона вперёд, 20% урона лечит тебя"},
+	"lay_hands": {"name": "Возложение рук", "icon": Vector2i(5, 3), "cd": 20.0, "cost": 25, "kind": "heal",
+		"target": "self", "base": 40, "spi": 4.0, "radius": 0.0, "desc": "Лечит тебя: 40 + Дух×4"},
+	"valor_aura": {"name": "Аура доблести", "icon": Vector2i(6, 3), "cd": 35.0, "cost": 30, "kind": "buff",
+		"buff": "warcry", "dur": 8.0, "allies": 140.0, "desc": "8 сек: урон +40% тебе и союзникам рядом"},
+	"divine_shield": {"name": "Божественный щит", "icon": Vector2i(8, 3), "cd": 60.0, "cost": 35, "kind": "buff",
+		"buff": "divine", "dur": 3.0, "allies": 0.0, "desc": "3 сек полной неуязвимости"},
+}
+
+# Базовая атака по стилю оружия: перезарядка мс, урон, радиус, шанс крита, дальность (для снарядов — длина полёта).
+const ATTACKS := {"slash": [300, 1.0, 36.0, 0.10, 30.0], "chop": [470, 1.35, 42.0, 0.10, 28.0],
+	"stab": [190, 0.8, 26.0, 0.22, 34.0], "bolt": [520, 0.9, 8.0, 0.08, 180.0], "shot": [460, 1.0, 6.0, 0.12, 230.0]}
 
 
 func race_of(p: Dictionary) -> Dictionary:
 	return RACES.get(str(p.get("look", {}).get("race", "human")), RACES.human)
 
 
-func race_skill(p: Dictionary) -> String:
-	return race_of(p).skill
+func class_id(p: Dictionary) -> String:
+	var c := str(p.get("cls", "warrior"))
+	return c if CLASSES.has(c) else "warrior"
+
+
+func class_of(p: Dictionary) -> Dictionary:
+	return CLASSES[class_id(p)]
+
+
+func class_skills(p: Dictionary) -> Array:
+	return class_of(p).skills
+
+
+func skill_level(p: Dictionary, id: String) -> int:
+	var i := class_skills(p).find(id)
+	return SKILL_LEVELS[i] if i >= 0 else 999
+
+
+## Какие классы считают предмет своим (для подсказки). Пусто — подходит всем.
+func classes_for(base: String) -> String:
+	var b: Dictionary = Items.BASES.get(base, {})
+	if b.get("slot", "") not in ["weapon", "head", "body"] or b.get("unique", false):
+		return ""
+	var kind := str(b.get("kind", ""))
+	if b.slot != "weapon" and kind == "":
+		return ""
+	var names := PackedStringArray()
+	for c in CLASSES.values():
+		if (b.slot == "weapon" and base in c.weapons) or (kind != "" and kind in c.armor):
+			names.append(c.name)
+	return ", ".join(names)
+
+
+## Свой ли предмет для класса героя. Уникальные трофеи и обувь подходят всем.
+func fits(p: Dictionary, it) -> bool:
+	if not (it is Dictionary) or it.is_empty() or not Items.BASES.has(it.base):
+		return true
+	var b: Dictionary = Items.BASES[it.base]
+	if b.get("unique", false):
+		return true
+	if b.slot == "weapon":
+		return it.base in class_of(p).weapons
+	var kind := str(b.get("kind", ""))
+	return kind == "" or kind in class_of(p).armor
+
+
+func has_class_weapon(p: Dictionary) -> bool:
+	var w = p.get("equip", {}).get("weapon")
+	return w is Dictionary and fits(p, w)
+
+
+## Заклинатель в латах: умения дороже, мана восстанавливается вдвое медленнее.
+func heavy_caster(p: Dictionary) -> bool:
+	if class_of(p).res != "mana" or "plate" in class_of(p).armor:
+		return false
+	for it in p.get("equip", {}).values():
+		if it is Dictionary and Items.kind_of(it) == "plate":
+			return true
+	return false
+
+
+func _gear_sum(p: Dictionary, field: String) -> float:
+	var s := 0.0
+	for it in p.get("equip", {}).values():
+		if it is Dictionary:
+			s += float(it.get(field, 0)) * (1.0 if fits(p, it) else OFF_CLASS)
+	return s
 
 
 func xp_to_next(level: int) -> int:
@@ -67,16 +199,15 @@ func xp_to_next(level: int) -> int:
 
 
 func stat(p: Dictionary, s: String) -> int:
-	return BASE_STAT + int(p.get("stats", {}).get(s, 0)) + int(race_of(p).stats.get(s, 0))
+	return BASE_STAT + int(p.get("stats", {}).get(s, 0)) + int(race_of(p).stats.get(s, 0)) + int(class_of(p).stats.get(s, 0))
 
 
 func max_hp(p: Dictionary) -> int:
-	return 80 + stat(p, "vit") * 6 + int(p.get("level", 1)) * 4
+	return int((80 + stat(p, "vit") * 6 + int(p.get("level", 1)) * 4) * float(class_of(p).hp_mult))
 
 
 func damage(p: Dictionary) -> float:
-	var r := race_of(p)
-	return (4.0 + Items.total_dmg(p.equip) + stat(p, "str") * 0.6) * float(r.get("dmg_mult", 1.0))
+	return (4.0 + _gear_sum(p, "dmg") + stat(p, "str") * 0.6) * float(race_of(p).get("dmg_mult", 1.0))
 
 
 func crit_chance(p: Dictionary) -> float:
@@ -88,7 +219,7 @@ func attack_speed(p: Dictionary) -> float:
 
 
 func armor(p: Dictionary) -> int:
-	return Items.total_armor(p.equip) + int(race_of(p).get("armor", 0))
+	return int(_gear_sum(p, "armor")) + int(race_of(p).get("armor", 0))
 
 
 func cd_mult(p: Dictionary) -> float:
@@ -107,7 +238,31 @@ func stamina_regen(p: Dictionary) -> float:
 	return 1.0 + stat(p, "vit") * 0.03
 
 
+# ---------- ресурс класса ----------
+
+func res_kind(p: Dictionary) -> String:
+	return class_of(p).res
+
+
+func res_max(p: Dictionary) -> int:
+	if res_kind(p) == "mana":
+		return 40 + stat(p, "spi") * 6 + int(p.get("level", 1)) * 3
+	return 100
+
+
+## Сколько ресурса восстанавливается в секунду (ярость не восстанавливается — она копится в бою).
+func res_regen(p: Dictionary) -> float:
+	match res_kind(p):
+		"mana":
+			return (1.5 + stat(p, "spi") * 0.12) * (0.5 if heavy_caster(p) else 1.0)
+		"energy":
+			return 12.0 + stat(p, "agi") * 0.1
+	return 0.0
+
+
+func skill_cost(p: Dictionary, id: String) -> int:
+	return int(ceil(float(SKILLS[id].get("cost", 0)) * (1.3 if heavy_caster(p) else 1.0)))
+
+
 func skill_unlocked(p: Dictionary, id: String) -> bool:
-	if id == race_skill(p):
-		return true
-	return id in COMMON_SKILLS and int(p.get("level", 1)) >= int(SKILLS[id].lvl)
+	return int(p.get("level", 1)) >= skill_level(p, id)
