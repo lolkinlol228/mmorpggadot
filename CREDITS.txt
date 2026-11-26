@@ -1,0 +1,21 @@
+Осколки Удачи — авторы графики
+
+Иконки предметов: "Shikashi's Fantasy Icons Pack" — Matt Firth (shikashipx)
+  https://shikashipx.itch.io/shikashis-fantasy-icons-pack
+  Лицензия: CC BY 4.0. Многие иконки основаны на рисунках game-icons.net (CC BY 3.0).
+  Указывать в титрах игры: "Matt Firth (shikashipx)" и "game-icons.net".
+
+Персонаж, окружение, рамки инвентаря: "Dark World - Free Asset Pack" — Kaishido
+  https://kaishido.itch.io/dark-world
+  Лицензия: CC0 1.0 (указание автора не обязательно, но приветствуется).
+
+Шрифт: "Silver" — Poppy Works
+  https://poppyworks.itch.io/silver
+  Лицензия: CC BY 4.0. Указывать в титрах: "Silver font by Poppy Works".
+  (Бесплатно, пока бюджет/доход проекта меньше 100 000 USD — дальше нужна отдельная лицензия.)
+
+Звуки: "RPG Audio", "Impact Sounds", "Interface Sounds" — Kenney (www.kenney.nl)
+  Лицензия: CC0 1.0 (указание автора не обязательно).
+
+Своя графика (оружие по редкостям, враги, слои снаряжения, карта, объекты, интерфейс):
+  генерируется скриптами tools/art/*.py — перезапуск: python tools/art/gen_art.py [--world] [--ui]
