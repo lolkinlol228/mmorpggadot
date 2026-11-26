@@ -17,6 +17,7 @@ var serial := 0
 var boss_timer := 45.0
 var regen_acc := 0.0
 var net_acc := 0.0
+var market
 var eco                      # host_economy.gd
 var gifts
 var talents
@@ -47,6 +48,9 @@ func _ready() -> void:
 	enemy_gift_ai.host = self
 	trader = preload("res://scripts/host_trade.gd").new()
 	trader.host = self
+	market = preload("res://scripts/host_market.gd").new()
+	market.host = self
+	market.load_state()
 
 
 func start_world() -> void:
@@ -134,6 +138,7 @@ func _process(delta: float) -> void:
 	_enemy_ai(delta)
 	gifts.update()
 	professions.update()
+	market.tick(delta)
 	_players_tick(delta)
 	boss_timer -= delta
 	if boss_timer <= 0.0:

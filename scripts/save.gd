@@ -125,18 +125,30 @@ func sanitize_char(d) -> Dictionary:
 	return out
 
 
-func load_world() -> Dictionary:
-	if FileAccess.file_exists(WORLD_PATH):
-		var parsed = JSON.parse_string(FileAccess.get_file_as_string(WORLD_PATH))
+## Читает мир, включая лоты и отложенные выплаты рынка.
+func load_world(path: String = WORLD_PATH) -> Dictionary:
+	if FileAccess.file_exists(path):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if parsed is Dictionary:
 			return parsed
 	return {}
 
 
-func store_world(data: Dictionary) -> void:
-	var f := FileAccess.open(WORLD_PATH, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(data))
+## Сохраняет обновлённые ключи мира одной заменой файла.
+func store_world(data: Dictionary, path: String = WORLD_PATH) -> bool:
+	var world := load_world(path)
+	world.merge(data, true)
+	var pending := path + ".tmp"
+	var file := FileAccess.open(pending, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(JSON.stringify(world))
+	file.flush()
+	var error := file.get_error()
+	file.close()
+	if error != OK:
+		return false
+	return DirAccess.rename_absolute(ProjectSettings.globalize_path(pending), ProjectSettings.globalize_path(path)) == OK
 
 
 func load_last_name() -> String:
