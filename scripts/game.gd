@@ -15,6 +15,7 @@ const Ambience := preload("res://scripts/ambience.gd")
 const Interact := preload("res://scripts/interact.gd")
 var client_input
 var client_combat
+var client_inventory
 var interact
 var open_spot := -1
 
@@ -57,6 +58,8 @@ const ATTACK_CD := {"slash": 340, "chop": 520, "stab": 220, "bolt": 560, "shot":
 
 
 func _ready() -> void:
+	client_inventory = preload("res://scripts/client_inventory.gd").new()
+	client_inventory.game = self
 	client_combat = preload("res://scripts/client_combat.gd").new()
 	client_combat.game = self
 	client_input = preload("res://scripts/client_input.gd").new()
@@ -204,43 +207,31 @@ func add_stat(s: String) -> void:
 
 
 func request_equip(uid: String) -> void:
-	_to_host("h_equip", [uid])
+	client_inventory.request_equip(uid)
 
 
 func request_unequip(slot: String) -> void:
-	_to_host("h_unequip", [slot])
+	client_inventory.request_unequip(slot)
 
 
 func request_trade_nearest() -> void:
-	var best := -1
-	var best_d := TRADE_RANGE
-	for pid in player_views:
-		if pid == my_id:
-			continue
-		var d: float = player_views[pid].position.distance_to(my_pos)
-		if d < best_d:
-			best_d = d
-			best = pid
-	if best == -1:
-		ui.add_feed("Подойди вплотную к другому игроку и нажми T, чтобы предложить обмен.", GREY)
-		return
-	_to_host("h_trade_req", [best])
+	client_inventory.request_trade_nearest()
 
 
 func answer_trade(from: int, accept: bool) -> void:
-	_to_host("h_trade_answer", [from, accept])
+	client_inventory.answer_trade(from, accept)
 
 
 func send_trade_offer(uids: Array) -> void:
-	_to_host("h_trade_offer", [uids])
+	client_inventory.send_trade_offer(uids)
 
 
 func confirm_trade() -> void:
-	_to_host("h_trade_confirm")
+	client_inventory.confirm_trade()
 
 
 func cancel_trade() -> void:
-	_to_host("h_trade_cancel")
+	client_inventory.cancel_trade()
 
 
 ## Взаимодействие с отмеченным объектом (хранилище, лавка, доска, житель).
@@ -267,7 +258,7 @@ func use_spot() -> void:
 
 
 func eco(op: String, arg := "") -> void:
-	_to_host("h_eco", [op, arg])
+	client_inventory.eco(op, arg)
 
 
 func send_chat(text: String) -> void:
@@ -280,20 +271,7 @@ func leave_game() -> void:
 
 
 func _auto_pickup() -> void:
-	if me.is_empty() or int(me.hp) <= 0:
-		return
-	var now := Time.get_ticks_msec()
-	for lid in loot_views:
-		if loot_views[lid].position.distance_to(my_pos) > PICKUP_RADIUS * Rules.Gifts.factor(me, "pickup"):
-			continue
-		if me.inv.size() >= Items.bag_capacity(me) and not Items.is_stack(loot_views[lid].item) and loot_views[lid].item.base != "coins":
-			if now - full_hint_at > 4000:
-				full_hint_at = now
-				ui.add_feed("Сумка полна! Выкинуть пока нельзя — надень лучшее или обменяй.", GREY)
-			return
-		if now - int(pending_pickup.get(lid, -100000)) > 1500:
-			pending_pickup[lid] = now
-			_to_host("h_pickup", [lid])
+	client_inventory._auto_pickup()
 
 
 func _on_server_disconnected() -> void:
@@ -494,48 +472,26 @@ func c_teleport(pos: Vector2, blink: bool) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_equip(pid: int, equip: Dictionary) -> void:
-	var v = player_views.get(pid)
-	if v:
-		v.set_equip(equip)
-	if pid == my_id:
-		Sfx.play("equip_metal" if equip.has("weapon") and randf() < 0.5 else "equip_cloth")
+	client_inventory.c_equip(pid, equip)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_loot(lid: int, item: Dictionary, pos: Vector2) -> void:
-	_add_loot(lid, item, pos, true)
+	client_inventory.c_loot(lid, item, pos)
 
 
 func _add_loot(lid: int, item: Dictionary, pos: Vector2, fresh: bool) -> void:
-	var v := LootView.new()
-	v.item = item
-	v.position = pos
-	entities.add_child(v)
-	loot_views[lid] = v
-	if fresh and Items.is_jackpot(item):
-		fx.drop_appeared(pos, item)
-		ui.add_feed("Что-то ослепительно сверкнуло на земле!", Items.color(item))
-	elif fresh and int(item.rarity) >= 2:
-		fx.burst(pos, Items.color(item), 16, false)
-		Sfx.play_at("shimmer", pos, my_pos)
+	client_inventory._add_loot(lid, item, pos, fresh)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_loot_gone(lid: int) -> void:
-	if loot_views.has(lid):
-		if pending_pickup.has(lid):
-			Sfx.play("pickup")
-		loot_views[lid].queue_free()
-		loot_views.erase(lid)
-	pending_pickup.erase(lid)
+	client_inventory.c_loot_gone(lid)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_jackpot(finder: String, item: Dictionary) -> void:
-	fx.jackpot(finder, item)
-	Sfx.fanfare(int(item.rarity) + 1)
-	ui.add_feed("⚡ %s нашёл %s [%s]" % [finder, Items.display_name(item),
-		Items.RARITY_NAMES[int(item.rarity)]], Items.color(item))
+	client_inventory.c_jackpot(finder, item)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -551,22 +507,22 @@ func c_announce(text: String, color: Color) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func c_trade_invite(from: int, from_name: String) -> void:
-	ui.show_invite(from, from_name)
+	client_inventory.c_trade_invite(from, from_name)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_trade_open(other_name: String) -> void:
-	ui.open_trade(other_name)
+	client_inventory.c_trade_open(other_name)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_trade_state(mine: Array, theirs: Array, my_ok: bool, their_ok: bool) -> void:
-	ui.set_trade_state(mine, theirs, my_ok, their_ok)
+	client_inventory.c_trade_state(mine, theirs, my_ok, their_ok)
 
 
 @rpc("authority", "call_remote", "reliable")
 func c_trade_closed(msg: String) -> void:
-	ui.close_trade(msg)
+	client_inventory.c_trade_closed(msg)
 
 
 func float_text(pos: Vector2, text: String, color: Color) -> void:
