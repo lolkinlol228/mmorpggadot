@@ -189,14 +189,42 @@ func dash() -> void:
 		_all("c_dash", [id])
 
 
-func _hurt_player(pid: int, dmg: int) -> void:
+## Парирование: открывает окно, в которое удар врага полностью гасится (см. _hurt_player).
+func parry() -> void:
+	var id := _sender()
+	var p = players.get(id)
+	if p == null or int(p.hp) <= 0 or not Rules.can_parry(p):
+		return
+	var now := Time.get_ticks_msec()
+	if now < int(p.get("parry_ready", 0)):
+		return
+	p.parry_ready = now + int(Rules.PARRY.cd * 1000.0)
+	p.parry_until = now + int(Rules.PARRY.window * 1000.0)
+	_all("c_parry", [id])
+
+
+## Удар врага eid по игроку. Броня режет урон, но не ниже Rules.ENEMY_MIN_DMG от удара —
+## иначе толстая броня делает героя бессмертным, и враги перестают что-то значить.
+func _hurt_player(pid: int, dmg: int, eid: int = -1) -> void:
 	var p: Dictionary = players[pid]
-	if Time.get_ticks_msec() < int(p.get("invuln_until", 0)):
+	var now := Time.get_ticks_msec()
+	if now < int(p.get("invuln_until", 0)):
+		return
+	if eid >= 0 and now < int(p.get("parry_until", 0)) and enemies.has(eid):
+		p.parry_until = 0
+		p.parry_ready = now + 600                            # удачное парирование быстро готово снова
+		p.riposte_until = now + int(Rules.PARRY.riposte_time * 1000.0)
+		var e: Dictionary = enemies[eid]
+		e.stun_until = now + int(Rules.PARRY.stun * (0.25 if e.kind == "golem" else 1.0) * 1000.0)
+		if Rules.res_kind(p) == "rage":
+			skills.add_res(p, Rules.PARRY.rage)
+		_all("c_parried", [pid, e.pos])
 		return
 	var mult: float = skills.damage_taken_mult(p)
 	if mult <= 0.0:
 		return                                              # божественный щит
-	var dealt := maxi(1, int((dmg - int(Rules.armor(p) * 0.5)) * mult))
+	var floor_dmg := maxi(1, int(dmg * Rules.ENEMY_MIN_DMG))
+	var dealt := maxi(floor_dmg, int((dmg - int(Rules.armor(p) * 0.5)) * mult))
 	skills.on_hurt(pid)
 	p.hp = maxi(0, int(p.hp) - dealt)
 	p.hurt_at = Time.get_ticks_msec()
@@ -250,6 +278,8 @@ func _enemy_ai(delta: float) -> void:
 		var e: Dictionary = enemies[eid]
 		var k: Dictionary = Items.ENEMIES[e.kind]
 		e.cd = maxf(0.0, e.cd - delta)
+		if int(e.get("stun_until", 0)) > Time.get_ticks_msec():
+			continue                                        # оглушён (парирование): стоит и не бьёт
 		var target := -1
 		var best: float = k.aggro
 		for pid in players:
@@ -265,7 +295,7 @@ func _enemy_ai(delta: float) -> void:
 				_step(e, (players[target].pos - e.pos).normalized() * k.speed * slow * delta, k)
 			elif e.cd <= 0.0:
 				e.cd = k.cooldown
-				_hurt_player(target, k.dmg)
+				_hurt_player(target, k.dmg, eid)
 		else:
 			e.wander_t -= delta
 			if e.wander_t <= 0.0:

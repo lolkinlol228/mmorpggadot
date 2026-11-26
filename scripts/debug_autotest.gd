@@ -217,6 +217,17 @@ func _hero_steps() -> void:
 			print("[autotest] герой: класс %s, уровень %d, %s %d/%d, здоровье %d, перезарядки %s, дары %s" % [
 				Rules.class_id(game.me), int(game.me.level), Rules.res_kind(game.me), int(game.me.get("res", 0)),
 				int(game.me.get("res_max", 0)), int(game.me.max_hp), str(game.me.cds.keys()), str(game.me.get("gifts", []))])
+		if t > 20.8 and _once("parry") and Rules.can_parry(game.me):     # парирование: удар врага в окно гасится
+			game.stamina = 100.0
+			game.parry()
+		if t > 20.9 and _once("parry_hit") and game.host.players[game.my_id].has("parry_until") and not game.host.enemies.is_empty():
+			var eid: int = game.host.enemies.keys()[0]
+			var hp_before: int = int(game.host.players[game.my_id].hp)
+			game.host._hurt_player(game.my_id, 12, eid)
+			print("[autotest] парирование: здоровье %d -> %d, враг оглушён: %s" % [hp_before,
+				int(game.host.players[game.my_id].hp), str(int(game.host.enemies[eid].get("stun_until", 0)) > Time.get_ticks_msec())])
+		if t > 21.0 and _once("shot_parry"):
+			_shot("12_parry")
 	else:
 		if t > 16.5 and _once("basic"):
 			game.my_facing = Vector2.RIGHT

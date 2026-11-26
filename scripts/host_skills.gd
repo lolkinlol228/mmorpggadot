@@ -47,7 +47,7 @@ func damage_taken_mult(p: Dictionary) -> float:
 		m *= 0.4
 	if has_buff(p, "barrier"):
 		m *= 0.5
-	return m
+	return maxf(m, Rules.MIN_DMG_TAKEN)                     # защита складывается, но не до бессмертия
 
 
 # ---------- ресурс класса ----------
@@ -105,6 +105,9 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 	var dmg := Rules.damage(p) * mult * randf_range(0.85, 1.15) * (cmult if crit else 1.0)
 	if has_buff(p, "warcry"):
 		dmg *= 1.4
+	if int(p.get("riposte_until", 0)) > now_ms():          # ответный удар после парирования
+		dmg *= Rules.PARRY.riposte
+		p.riposte_until = 0
 	if opts.has("execute") and float(e.hp) < float(e.max_hp) * float(opts.execute):
 		dmg *= 2.0
 	var d := int(dmg)

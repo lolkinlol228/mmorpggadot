@@ -13,6 +13,12 @@ const SHARE_XP_RADIUS := 320.0      # опыт получают все союз�
 const OFF_CLASS := 0.5              # чужое оружие и броня дают только половину характеристик
 const SKILL_LEVELS := [1, 2, 4, 6]  # с какого уровня открываются 1-е…4-е умения класса
 const SKILL_KEYS := ["1", "2", "3", "4"]
+# Минимумы, чтобы враги оставались опасными при любой броне, дарах и баффах:
+const ENEMY_MIN_DMG := 0.2          # удар врага после брони — не меньше 20% от его силы
+const MIN_DMG_TAKEN := 0.15         # все множители защиты вместе — не ниже ×0.15 (кроме божественного щита)
+# Парирование (ПКМ или F): только оружием ближнего боя. Удар в окно гасится, враг оглушён,
+# следующий удар героя — ответный, сильнее. Удачное парирование снова готово почти сразу.
+const PARRY := {"window": 0.3, "cd": 3.0, "cost": 20.0, "stun": 1.0, "riposte": 1.5, "riposte_time": 2.0, "rage": 10.0}
 
 # Раса — внешность, небольшой бонус к характеристикам и пассивка. Умения даёт класс.
 const RACES := {
@@ -169,6 +175,12 @@ func fits(p: Dictionary, it) -> bool:
 		return it.base in class_of(p).weapons
 	var kind := str(b.get("kind", ""))
 	return kind == "" or kind in class_of(p).armor
+
+
+## Парировать можно только оружием ближнего боя (меч, топор, кинжал, молот).
+func can_parry(p: Dictionary) -> bool:
+	var w = p.get("equip", {}).get("weapon")
+	return w is Dictionary and Items.style_of(w) in ["slash", "chop", "stab"]
 
 
 func has_class_weapon(p: Dictionary) -> bool:

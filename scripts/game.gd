@@ -104,7 +104,7 @@ func _ready() -> void:
 		ui.add_feed("Мир создан на порту %d. Друзья подключаются по твоему IP." % Net.port, Color(0.7, 0.9, 1.0))
 	else:
 		rpc_id(1, "h_register", char_data)
-	ui.add_feed("WASD — ходьба · Shift — бег · Пробел — рывок · ЛКМ — удар · E — взаимодействие · I — сумка", GREY)
+	ui.add_feed("WASD — ходьба · Shift — бег · Пробел — рывок · ЛКМ — удар · ПКМ/F — парирование · E — взаимодействие · I — сумка", GREY)
 	ui.add_feed("1 2 3 4 — умения класса (открываются с уровнем) · C — герой, класс и дары", GREY)
 	_maybe_autotest()
 
@@ -190,10 +190,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			use_spot()
 		else:
 			attack()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		parry()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
 			KEY_SPACE:
 				dash()
+			KEY_F:
+				parry()
 			KEY_I, KEY_TAB:
 				ui.toggle_inventory()
 			KEY_T:
@@ -254,6 +258,49 @@ func attack() -> void:
 		return
 	last_attack = now
 	_to_host("h_attack", [my_facing])
+
+
+var parry_ready_at := 0
+
+## Парирование (ПКМ / F): тратит выносливость, само окно и исход решает хост.
+func parry() -> void:
+	if me.is_empty() or int(me.hp) <= 0:
+		return
+	if not Rules.can_parry(me):
+		ui.add_feed("Парировать можно только оружием ближнего боя.", GREY)
+		return
+	var now := Time.get_ticks_msec()
+	if now < parry_ready_at or stamina < Rules.PARRY.cost:
+		return
+	parry_ready_at = now + int(Rules.PARRY.cd * 1000.0)
+	stamina -= Rules.PARRY.cost
+	stamina_idle = 0.0
+	_to_host("h_parry")
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func h_parry() -> void:
+	if host: host.parry()
+
+@rpc("authority", "call_remote", "reliable")
+func c_parry(pid: int) -> void:
+	var v = player_views.get(pid)
+	if v:
+		v.parry()
+
+## Удачное парирование: искры, звон, надпись. Себе — сразу снова готово.
+@rpc("authority", "call_remote", "reliable")
+func c_parried(pid: int, enemy_pos: Vector2) -> void:
+	var v = player_views.get(pid)
+	if v == null:
+		return
+	var mid: Vector2 = v.position.lerp(enemy_pos, 0.45) + Vector2(0, -14)
+	fx.burst(mid, Color(1.0, 0.9, 0.55), 18, false)
+	float_text(v.position + Vector2(0, -46), "Парировано!", Color(1.0, 0.9, 0.55))
+	Sfx.play_at("bell", v.position, my_pos)
+	if pid == my_id:
+		parry_ready_at = Time.get_ticks_msec() + 600
+		fx.shake = 0.12
 
 
 func move_mult() -> float:

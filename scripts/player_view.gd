@@ -30,6 +30,7 @@ var speed := 0.0
 var dash_t := 0.0
 var trail: Array = []        # силуэты рывка: [позиция, кадр, направление, флип, время]
 var use_t := 0.0
+var parry_t := 0.0          # стойка парирования: оружие поднято, перед героем серебряная дуга
 var hurt_t := 0.0
 var skill_id := ""        # эффект умения: вспышка в момент применения
 var skill_t := 0.0
@@ -91,6 +92,10 @@ func hurt() -> void:
 	hurt_t = 0.22
 
 
+func parry() -> void:
+	parry_t = Rules.PARRY.window
+
+
 func use() -> void:
 	use_t = 0.35
 
@@ -137,6 +142,7 @@ func _process(delta: float) -> void:
 	t += delta
 	swing_t = maxf(0.0, swing_t - delta)
 	use_t = maxf(0.0, use_t - delta)
+	parry_t = maxf(0.0, parry_t - delta)
 	hurt_t = maxf(0.0, hurt_t - delta)
 	skill_t = maxf(0.0, skill_t - delta)
 	for id in auras.keys():
@@ -166,6 +172,8 @@ func _process(delta: float) -> void:
 func _frame_col() -> int:
 	if swing_t > 0.0:
 		return STYLES[style][0] + mini(2, int((1.0 - swing_t / swing_len) * 3.0))
+	if parry_t > 0.0:
+		return 13                                   # первый кадр удара сверху — оружие поднято в блок
 	if hurt_t > 0.0:
 		return 20
 	if use_t > 0.0:
@@ -219,6 +227,10 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 	if swing_t > 0.0:
 		_draw_swing_fx()
+	if parry_t > 0.0:
+		var a := facing.angle()
+		var k := parry_t / Rules.PARRY.window
+		draw_arc(Vector2(0, -12) + facing * 4.0, 13.0, a - 1.1, a + 1.1, 12, Color(0.85, 0.92, 1.0, 0.85 * k), 2.0)
 	_draw_skill_fx()
 
 

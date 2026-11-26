@@ -9,7 +9,7 @@
 
 ## Задача
 
-Сделать так, чтобы **дары судьбы работали в игре**. Дары — врождённые особенности героя, их выдаёт бросок при создании героя (1 дар, иногда 2–3). Каталог из 246 даров уже лежит в `data/gifts.json`. Загрузка, бросок и показ даров в интерфейсе уже сделаны. **Эффекты даров не работают** — это и есть твоя задача.
+Сделать так, чтобы **дары судьбы работали в игре**. Дары — врождённые особенности героя, их выдаёт бросок при создании героя (1 дар, иногда 2–3). Каталог из 250 даров уже лежит в `data/gifts.json`. Загрузка, бросок и показ даров в интерфейсе уже сделаны. **Эффекты даров не работают** — это и есть твоя задача.
 
 ## Как устроен проект (прочитай перед работой)
 
@@ -33,7 +33,7 @@
 | `scripts/host_skills.gd` | Хост: `hit_enemy()` (один удар по врагу — главная точка для даров боя), `strike()` (удар по кругу), `bolt()` (снаряд), `use()` (умения), `basic_attack()`, ресурсы (`res_tick`, `add_res`, `on_hurt`), опыт (`on_kill`, `give_xp`), `damage_taken_mult()`, баффы `p.buffs[name] = мс_до_конца`. |
 | `scripts/host_logic.gd` | Хост: игроки `players[pid]` (словарь героя: `hp`, `max_hp`, `pos`, `equip`, `cls`, `gifts`, `res`, `buffs`, `cds`, `level`…), враги `enemies[eid]` (`kind`, `pos`, `hp`, `max_hp`, `cd`, `slow_until`), `_hurt_player()` (урон по игроку), `_enemy_ai()`, `_kill()` (смерть врага, монеты, лут), `_players_tick()` (регенерация, возрождение). |
 | `scripts/gifts.gd` | Каталог даров (static): `Gifts.get_gift(id)`, `Gifts.all()`, `Gifts.roll_fate()`, `Gifts.sanitize()`. Подключается так: `const Gifts := preload("res://scripts/gifts.gd")`. |
-| `data/gifts.json` | 246 даров, по одному на строку. |
+| `data/gifts.json` | 250 даров, по одному на строку. |
 | `scripts/game.gd` | Клиент: движение, рывок, спринт, выносливость (`move_mult()`, `dash()`, `stamina`), RPC. |
 | `scripts/char_window.gd` | Окно героя (C), уже показывает дары. |
 | `scripts/debug_autotest.gd` | Автотест, который запускает 2 окна игры и делает скриншоты. |
@@ -50,7 +50,21 @@
 - `proc` — срабатывание `[событие, шанс 0..1, эффект, значение]`.
 - `flag` — особая механика, у каждого флага своя логика.
 
-У 149 даров нет `flag`: они работают только на `mods`, `when` и `proc`. У 97 даров `flag` есть.
+У 152 даров нет `flag`: они работают только на `mods`, `when` и `proc`. У 98 даров `flag` есть.
+
+## Баланс: это обязательно
+
+Дары складываются между собой, с расой, классом и вещами. Чтобы сочетания не ломали игру, в `scripts/gifts.gd` уже заданы правила. Движок обязан их соблюдать:
+
+- **`Gifts.CAPS`** — потолки итоговых значений: крит ≤ 60%, уклонение ≤ 35%, перезарядки короче максимум на 40%, вампиризм ≤ 20%, скорость ≤ +45%, урон от даров ≤ +100%, лут, монеты и опыт ≤ ×2 и т.д. Обрезай по ним **итог**, а не каждый дар отдельно.
+- **`Gifts.PROC_ICD`** — один и тот же дар срабатывает по событию `hit` не чаще раза в 0.4 с. Иначе быстрое оружие и умения по площади запускают срабатывания десятки раз в секунду.
+- **`Gifts.DOT_MAX_STACKS`** — урон со временем копится максимум до 10 раз.
+- **`Gifts.BOSS_RULES`** — на боссов (голем) не действуют `instakill`, `execute`, `knockback`, `fear`. Оглушение и замедление по ним в 4 раза короче. Урон со временем — не больше 1% их здоровья в секунду.
+- **Уже сделано в коде, не ломай:**
+  - `Rules.ENEMY_MIN_DMG` — удар врага после брони не меньше 20% его силы;
+  - `Rules.MIN_DMG_TAKEN` — все множители защиты вместе не ниже ×0.15, кроме божественного щита.
+  
+  Новые защитные дары (`dmg_taken_*`, щиты, броня) тоже должны проходить через эти минимумы.
 
 ## Что сделать
 
@@ -92,6 +106,8 @@
 - `bag` — `Items.MAX_INV` для этого героя.
 - `bank` — `Items.MAX_BANK` для этого героя.
 - `sprint_cost`, `sprint_speed`, `dash_cd`, `dash_dist`, `dash_charges` — на клиенте в `game.gd`.
+- `parry_cost` — расход выносливости на парирование (клиент, `game.parry()`, `Rules.PARRY.cost`).
+- `parry_window` — длина окна парирования (хост, `host_logic.parry()`, `Rules.PARRY.window`).
 - `cc_resist`, `dot`, `block`, `food`, `cook`, `pickup`, `chest_coin`, `revive_speed`, `buff_power` — там, где система уже есть. Если системы нет (оглушений игрока пока нет, еды нет), просто оставь ключ без эффекта.
 
 Ключи ремёсел (`gather_*`, `craft_*`, `xp_smith` и т.п., `tool_wear`, `carry`, `salvage`) **пока не трогай**: систем добычи и крафта ещё нет. Сделай одну функцию-заглушку `Gifts.mod(p, "gather_ore")`, которой будущий код сможет пользоваться.
@@ -137,6 +153,7 @@
 | `kill` | `_kill` |
 | `hurt` | `_hurt_player` |
 | `dodge` | когда сработало уклонение |
+| `parry` | удачное парирование: ветка с `parry_until` в `host_logic._hurt_player` |
 | `skill` | в конце `use()` |
 | `dash` | `host_logic.dash()` |
 | `low_hp` | при переходе ниже 35%, один раз до восстановления выше |
@@ -178,14 +195,16 @@
 | `coin_mult` | монет ×N с этого убийства |
 | `gold_drop` | дополнительная кучка монет |
 | `dash_dmg` | урон врагам на пути рывка |
+| `reflect` | при парировании вернуть врагу N× урона его удара |
+| `parry_reset` | при парировании сразу снять перезарядку парирования (`p.parry_ready = 0`), ответный удар ×N вместо `Rules.PARRY.riposte` |
 
 Эффекты `double`, `gem`, `free_craft`, `no_deplete`, `rare_mat`, `golden_item`, `decoy`, `summon_wolf` пропусти: для них нет систем. Помечай пропущенное в `docs/codex/gifts_status.md` (см. ниже).
 
 ### 4. Флаги (`flag`)
 
-Сделай **только эти** 30 флагов. Они опираются на то, что уже есть в игре:
+Сделай **только эти** 31 флаг. Они опираются на то, что уже есть в игре:
 
-`berserk`, `first_crit`, `cleave`, `momentum`, `combo4`, `execute15`, `crit_chain`, `echo5`, `kill_streak`, `fate_blade`, `cheat_death300`, `self_revive600`, `diamond3`, `dmg_cap25`, `block30`, `mana_shield10`, `overheal_shield`, `heal_splash`, `empath`, `mana_scaling`, `random_dmg`, `no_armor`, `lone_wolf`, `lunatic`, `night_owl`, `coward`, `hp_cost`, `no_heal`, `free_sprint`, `any_weapon`.
+`berserk`, `first_crit`, `cleave`, `momentum`, `combo4`, `execute15`, `crit_chain`, `echo5`, `kill_streak`, `fate_blade`, `cheat_death300`, `self_revive600`, `diamond3`, `dmg_cap25`, `block30`, `mana_shield10`, `overheal_shield`, `heal_splash`, `empath`, `mana_scaling`, `random_dmg`, `no_armor`, `lone_wolf`, `lunatic`, `night_owl`, `coward`, `hp_cost`, `no_heal`, `free_sprint`, `any_weapon`, `counter_parry` (у дара «Ответный удар» `proc` срабатывает и на событие `parry`, не только на `dodge`).
 
 Описание каждого — поле `desc` того же дара в JSON, делай по нему. Счётчики (`momentum`, `crit_chain`, `fate_blade` и т.п.) храни в словаре героя на хосте. Если счётчик должен переживать выход из игры (`fate_blade`, позже `devourer`), сохраняй его в новом поле `gift_state`: `save.gd` → `sanitize_char`, `game.gd` → `Save.store_char`, `host_logic._private`.
 
@@ -198,12 +217,13 @@
    "<godot>" --headless --path C:\Users\isi08\Desktop\coop-rpg --script res://tests/test_gifts.gd
    ```
    Тест должен:
-   - убедиться, что у **каждого** из 246 даров:
+   - убедиться, что у **каждого** из 250 даров:
      - все ключи `mods` известны: либо подключены, либо в списке «отложено до ремёсел»;
      - `when` из списка условий;
      - событие и эффект `proc` из списков;
      - `flag` либо реализован, либо в списке отложенных;
    - для нескольких даров (`strong_arm`, `glass_cannon`, `fortress`, `archmage`, `swift`) проверить, что `Rules.damage`, `max_hp`, `skill_cost` и `speed_mult` реально меняются у героя-словаря с этим даром и без него;
+   - проверить потолки: герой с дарами `precision` + `sharp_eye` + `four_leaf` + `lucky` и ловкостью 300 не получает крит выше 60%;
    - выйти с кодом 1 при любой ошибке и напечатать, что не так.
 2. Запусти обычный автотест двумя окнами. Окна запускай свёрнутыми и закрывай после. **Закрывай только процессы Godot, в командной строке которых есть `coop-rpg`. Чужие окна Godot (редактор пользователя) не трогай.**
    ```
@@ -220,7 +240,7 @@
 
 - Работай в ветке `codex/gifts-engine`: `git checkout -b codex/gifts-engine`. Делай коммиты по шагам, **не пушь** и не сливай в `master`.
 - Не меняй:
-  - баланс и данные классов и умений (`CLASSES`, `SKILLS`, `ATTACKS` в `rules.gd`);
+  - баланс и данные классов, умений и парирования (`CLASSES`, `SKILLS`, `ATTACKS`, `PARRY` в `rules.gd`);
   - меню создания героя (`menu.gd`);
   - графику (`tools/art`, `assets`);
   - сам каталог `data/gifts.json`.
