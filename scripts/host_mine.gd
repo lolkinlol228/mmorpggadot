@@ -2,6 +2,7 @@ extends RefCounted
 
 const Sites := preload("res://scripts/adventure_sites.gd")
 const Quest := preload("res://scripts/mine_quest.gd")
+const MAX_REINFORCEMENTS := 2
 const POSTS := [
 	["shell", Vector2(2760, 785)], ["ringer", Vector2(2955, 678)],
 	["shell", Vector2(3090, 496)], ["ringer", Vector2(3145, 472)],
@@ -10,6 +11,7 @@ var host
 var opened := false
 var next_spawn := {}
 var occupants := {}
+var reinforcements: Array[int] = []
 
 
 func setup() -> void:
@@ -29,12 +31,21 @@ func open_mine() -> bool:
 	return true
 
 
-func tick() -> void:
-	if not opened or occupants.size() == POSTS.size():
-		return
+func has_players() -> bool:
 	for p in host.players.values():
 		if Sites.MINE.has_point(p.pos):
-			return
+			return true
+	return false
+
+
+func tick() -> void:
+	if not opened or (reinforcements.is_empty() and occupants.size() == POSTS.size()):
+		return
+	if has_players():
+		return
+	for eid in reinforcements:
+		host.host_enemies.despawn(eid)
+	reinforcements.clear()
 	var now := Time.get_ticks_msec()
 	for i in POSTS.size():
 		if not occupants.has(i) and now >= int(next_spawn.get(i, 0)):
@@ -76,6 +87,7 @@ func killed(e: Dictionary, pid: int) -> void:
 		occupants.erase(e.post)
 		next_spawn[e.post] = Time.get_ticks_msec() + (180000 if e.kind == "warden" else 30000)
 	if e.kind == "shell":
+		reinforcements.erase(e.id)
 		credit(e.kind, e.pos, pid)
 
 
@@ -110,6 +122,18 @@ func damage(pid: int, e: Dictionary, amount: int, silence := false, wound := fal
 	return amount
 
 
+func call_reinforcements(pos: Vector2) -> void:
+	if not has_players():
+		return
+	var bounds := Sites.MINE.grow(-18)
+	for side in [-1, 1]:
+		if reinforcements.size() >= MAX_REINFORCEMENTS:
+			break
+		var pt := (pos + Vector2(22 * side, 15)).clamp(bounds.position, bounds.end)
+		var eid: int = host.host_enemies.spawn_at("shell", Sites.open_point(host.get_node("/root/World"), pt))
+		reinforcements.append(eid)
+
+
 func brain(e: Dictionary, target: int, stats: Dictionary, delta: float, now: int) -> void:
 	var phase: String = e.get("phase", "")
 	if now < int(e.get("stun_until", 0)):
@@ -130,10 +154,7 @@ func brain(e: Dictionary, target: int, stats: Dictionary, delta: float, now: int
 		e.phase = ""
 		if phase == "ring":
 			e.ring_at = now + 12000
-			for side in [-1, 1]:
-				var pt: Vector2 = e.pos + Vector2(22 * side, 15)
-				var bounds := Sites.MINE.grow(-18)
-				host.host_enemies.spawn_at("shell", Sites.open_point(host.get_node("/root/World"), pt.clamp(bounds.position, bounds.end)))
+			call_reinforcements(e.pos)
 		else:
 			e.open_until = now + 1500
 			e.cd = stats.cooldown

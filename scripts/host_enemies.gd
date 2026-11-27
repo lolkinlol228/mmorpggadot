@@ -65,12 +65,16 @@ func _step(e: Dictionary, d: Vector2, k: Dictionary) -> void:
 		e.pos = np
 
 
-func _kill(eid: int, killer: int) -> void:
-	var e: Dictionary = host.enemies[eid]
+func despawn(eid: int) -> void:
 	for p in host.players.values():
 		p.get("gift_first", {}).erase(eid)
 	host.enemies.erase(eid)
 	host._all("c_enemy_died", [eid])
+
+
+func _kill(eid: int, killer: int) -> void:
+	var e: Dictionary = host.enemies[eid]
+	despawn(eid)
 	host.mine.killed(e, killer)
 	var boss: bool = e.kind in ["golem", "warden"]
 	var party: Array = host.rewards.participants(e, killer) if boss else []

@@ -10,6 +10,8 @@ class LocalGame:
 	func c_enemy_hit(_pid: int, _hp: int, _dmg: int, crit: bool) -> void: last_crit = crit
 	func c_parried(_pid: int, _pos: Vector2) -> void: pass
 	func c_swing(_pid: int, _dir: Vector2) -> void: pass
+	var removed: Array[int] = []
+	func c_enemy_died(eid: int) -> void: removed.append(eid)
 	var messages: Array = []
 	func c_announce(message: String, _color: Color) -> void: messages.append(message)
 	func c_self(_data: Dictionary) -> void: pass
@@ -86,6 +88,44 @@ func encounters() -> bool:
 	check(m.occupants.has(5), "Возрождение в пустой шахте")
 	return true
 
+
+
+func reinforcements() -> bool:
+	var m = host.mine
+	var p: Dictionary = host.players[1]
+	var posts: Array = m.occupants.values()
+	var ringer: Dictionary = host.enemies[m.occupants[3]]
+	var warden: Dictionary = host.enemies[m.occupants[5]]
+	var stats: Dictionary = root.get_node("Items").ENEMIES
+	p.pos = ringer.pos
+	warden.hp = 799
+	for enemy in [ringer, warden, ringer]:
+		enemy.ring_at = 0
+		m.brain(enemy, 1, stats[enemy.kind], 0.0, 20000)
+		m.brain(enemy, 1, stats[enemy.kind], 0.0, 23000)
+	check(host.enemies.size() == posts.size() + 2, "Звонари и Страж делят два места для подкреплений")
+	var defeated: int = m.reinforcements.front()
+	host._kill(defeated, 1)
+	warden.ring_at = 0
+	m.brain(warden, 1, stats.warden, 0.0, 35000)
+	m.brain(warden, 1, stats.warden, 0.0, 38000)
+	check(host.enemies.size() == posts.size() + 2 and not m.reinforcements.has(defeated), "Следующий звон восполняет одно свободное место")
+	host.players[2] = player(2, ringer.pos)
+	p.pos = Sites.CAMPS.ford
+	m.tick()
+	check(host.enemies.size() == posts.size() + 2, "Подкрепления остаются рядом с последним гостем")
+	var expected: Array = m.reinforcements.duplicate()
+	var xp: int = p.xp
+	var loot: int = host.loots.size()
+	host.game.removed.clear()
+	ringer.phase = "ring"
+	ringer.until = 40000
+	host.players.erase(2)
+	m.tick()
+	m.brain(ringer, -1, stats.ringer, 0.0, 40000)
+	check(host.enemies.keys() == posts and m.reinforcements.is_empty(), "После выхода гостя остаются все постоянные посты, отложенный звон не призывает врагов")
+	check(host.game.removed == expected and p.xp == xp and host.loots.size() == loot, "Клиент получил снятие обоих подкреплений без наград за убийство")
+	return true
 
 
 func quest() -> bool:
@@ -255,6 +295,7 @@ func _run() -> void:
 	host.add_child(host.eco)
 	host.players[1] = player(1, Sites.CAMPS.ford)
 	check(encounters(), "Сценарий encounters завершён")
+	check(reinforcements(), "Сценарий подкреплений завершён")
 	check(quest(), "Сценарий quest завершён")
 	check(forge(), "Сценарий forge завершён")
 	check(properties(), "Боевые свойства проверены")

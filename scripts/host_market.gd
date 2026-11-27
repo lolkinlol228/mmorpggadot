@@ -112,7 +112,7 @@ func tick(delta: float) -> void:
 		expire()
 
 
-## Перекладывает просроченные вещи в отложенные возвраты.
+## Переносит старые записи по имени на идентификатор вошедшего героя.
 func claim_legacy(p: Dictionary) -> bool:
 	var previous := snapshot()
 	var changed := false
@@ -134,6 +134,7 @@ func claim_legacy(p: Dictionary) -> bool:
 	return true
 
 
+## Перекладывает просроченные вещи в отложенные возвраты.
 func expire() -> bool:
 	var previous := snapshot()
 	var changed := false
