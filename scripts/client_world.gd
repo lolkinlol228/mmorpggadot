@@ -99,6 +99,11 @@ func _maybe_autotest() -> void:
 	if not OS.is_debug_build():
 		return
 	var args := OS.get_cmdline_user_args()
+	if args.has("--mine-test"):
+		var runner = load("res://scripts/debug_mine_test.gd").new()
+		runner.game = game
+		game.add_child(runner)
+		return
 	if not args.has("--autotest"):
 		return
 	var tester = load("res://scripts/debug_autotest.gd").new()

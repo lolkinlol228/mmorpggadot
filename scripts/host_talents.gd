@@ -254,7 +254,7 @@ func killed(pid: int, enemy: Dictionary, ctx: Dictionary) -> void:
 ## Воскрешение на месте, штраф смерти и усиление короля.
 func death(pid: int) -> void:
 	var p: Dictionary = host.players[pid]
-	if Sites.CAVE.has_point(p.pos) and host.gifts.has(p, "dungeon_revive") and not p.get("gift_dungeon_revived", false):
+	if (Sites.CAVE.has_point(p.pos) or Sites.MINE.has_point(p.pos)) and host.gifts.has(p, "dungeon_revive") and not p.get("gift_dungeon_revived", false):
 		p.gift_dungeon_revived = true
 		revive(pid)
 		return

@@ -26,12 +26,12 @@ func cond(pid: int, when: String, ctx: Dictionary = {}) -> bool:
 			return count >= 3 if when == "outnumbered" else count == 1
 		"target_low": return not e.is_empty() and ratio(e) < 0.5
 		"vs_slime", "vs_wolf", "vs_golem": return when == "vs_" + kind
-		"vs_big": return kind == "golem"
-		"vs_elite": return kind == "golem" or bool(e.get("elite", false))
+		"vs_big": return kind in ["golem", "warden"]
+		"vs_elite": return kind in ["golem", "warden"] or bool(e.get("elite", false))
 		"vs_undead": return kind == "undead"
 		"on_road": return Sites.on_road(p.pos)
 		"in_forest": return Sites.forest(p.pos)
-		"dungeon": return Sites.CAVE.has_point(p.pos)
+		"dungeon": return Sites.CAVE.has_point(p.pos) or Sites.MINE.has_point(p.pos)
 		"blade": return weapon.get("base", "") in ["sword", "dagger", "abyss_blade"]
 		"blunt": return weapon.get("base", "") == "hammer"
 		"far_target": return not e.is_empty() and p.pos.distance_to(e.pos) > 120.0

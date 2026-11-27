@@ -17,6 +17,8 @@ func target(enemy: Dictionary, stats: Dictionary) -> int:
 			continue
 		if Sites.MINE.has_point(p.pos) != Sites.MINE.has_point(enemy.pos):
 			continue
+		if Sites.MINE.has_point(enemy.pos) and Sites.mine_wall_between(enemy.pos, p.pos):
+			continue
 		if (enemy.kind == "undead") != Sites.CAVE.has_point(p.pos):
 			continue
 		var distance: float = enemy.pos.distance_to(p.pos)

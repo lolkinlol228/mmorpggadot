@@ -17,7 +17,10 @@ func setup() -> void:
 
 
 func open_mine() -> bool:
-	if opened or not host.get_node("/root/Save").store_world({"mine_open": true}):
+	if opened:
+		return false
+	if not host.get_node("/root/Save").store_world({"mine_open": true}):
+		push_error("Не удалось сохранить открытие шахты")
 		return false
 	opened = true
 	host._all("c_announce", ["Вода у Пристани уходит… Расспросите Рыбака о проходе.", Color.AQUAMARINE])
@@ -47,6 +50,8 @@ func action(pid: int, op: String, arg: String) -> void:
 			continue
 		if op == "mine" and spot.kind == "mine" and arg == spot.action:
 			if opened:
+				if arg == "enter":
+					p.gift_dungeon_revived = false
 				host.talents.travel(pid, Sites.MINE_EXIT + Vector2(22, 0) if arg == "enter" else Sites.MINE_GATE + Vector2(0, 25))
 			else:
 				host._to(pid, "c_announce", ["Вход затоплен. Рыбак знает почему.", Color.SKY_BLUE])
@@ -70,7 +75,7 @@ func killed(e: Dictionary, pid: int) -> void:
 	if e.has("post"):
 		occupants.erase(e.post)
 		next_spawn[e.post] = Time.get_ticks_msec() + (180000 if e.kind == "warden" else 30000)
-	if e.kind in ["shell", "warden"]:
+	if e.kind == "shell":
 		credit(e.kind, e.pos, pid)
 
 
@@ -96,6 +101,8 @@ static func armor(e: Dictionary, from: Vector2, damage: int, now: int) -> int:
 
 func damage(pid: int, e: Dictionary, amount: int, silence := false, wound := false) -> int:
 	var now := Time.get_ticks_msec()
+	if e.kind in ["golem", "warden"] and host.players.has(pid):
+		e.get_or_add("contributors", {})[host.players[pid].hid] = true
 	if host.players.has(pid) and not wound:
 		amount = armor(e, host.players[pid].pos, amount, now)
 	if silence or amount >= float(e.max_hp) * 0.15:
@@ -112,13 +119,21 @@ func brain(e: Dictionary, target: int, stats: Dictionary, delta: float, now: int
 	if phase != "":
 		if now < int(e.until):
 			return
+		if phase == "ring":
+			# Последний взмах колокола можно парировать вблизи.
+			for pid in host.players:
+				var p: Dictionary = host.players[pid]
+				if p.hp > 0 and p.pos.distance_to(e.pos) <= stats.radius + 24 and p.get("parry_until", 0) > now:
+					host._hurt_player(pid, stats.dmg, e.id)
+					if e.phase != "ring":
+						return
 		e.phase = ""
 		if phase == "ring":
 			e.ring_at = now + 12000
 			for side in [-1, 1]:
 				var pt: Vector2 = e.pos + Vector2(22 * side, 15)
 				var bounds := Sites.MINE.grow(-18)
-				host.host_enemies.spawn_at("shell", pt.clamp(bounds.position, bounds.end))
+				host.host_enemies.spawn_at("shell", Sites.open_point(host.get_node("/root/World"), pt.clamp(bounds.position, bounds.end)))
 		else:
 			e.open_until = now + 1500
 			e.cd = stats.cooldown

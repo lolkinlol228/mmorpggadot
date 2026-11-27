@@ -17,6 +17,7 @@ var serial := 0
 var boss_timer := 45.0
 var regen_acc := 0.0
 var net_acc := 0.0
+var rewards
 var mine
 var market
 var eco                      # host_economy.gd
@@ -30,6 +31,8 @@ var skills                   # host_skills.gd
 
 
 func _ready() -> void:
+	rewards = preload("res://scripts/boss_rewards.gd").new()
+	rewards.host = self
 	mine = preload("res://scripts/host_mine.gd").new()
 	mine.host = self
 	mine.setup()
@@ -140,6 +143,7 @@ func update_pos(pos: Vector2, facing: Vector2) -> void:
 func _process(delta: float) -> void:
 	host_players.sync_local()
 	preload("res://scripts/weapon_forge.gd").bleed(self, Time.get_ticks_msec())
+	rewards.tick(Time.get_ticks_msec())
 	mine.tick()
 	_enemy_ai(delta)
 	gifts.update()
@@ -328,6 +332,8 @@ func pickup(lid: int) -> void:
 	var l = loots.get(lid)
 	if p == null or l == null or int(p.hp) <= 0:
 		return
+	if not rewards.allowed(lid, id, Time.get_ticks_msec()):
+		return
 	if p.pos.distance_to(l.pos) > 70.0 * gifts.factor(id, "pickup"):
 		return
 	var item: Dictionary = l.item
@@ -342,6 +348,7 @@ func pickup(lid: int) -> void:
 	if not eco.add_item(p, item):
 		loots[lid] = l                     # не влезло — остаётся лежать
 		return
+	rewards.reservations.erase(lid)
 	_all("c_loot_gone", [lid])
 	_send_self(id)
 	if Items.is_jackpot(item):

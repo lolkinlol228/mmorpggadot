@@ -45,6 +45,10 @@ const BASES := {
 	"slime_gel": {"name": "Сгусток слизи", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 18), "stack": 99},
 	"wolf_fang": {"name": "Клык вожака", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(9, 17), "stack": 99},
 	"golem_shard": {"name": "Осколок ядра голема", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 17), "stack": 99},
+	"bell_tongue": {"name": "Язык колокола", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(8, 11), "stack": 99},
+	"recipe_bell_hammer": {"name": "Рецепт: Молот глубин", "slot": "use", "dmg": 0, "armor": 0, "icon": Vector2i(11, 13), "stack": 5, "teaches": "bell_hammer"},
+	"bell_hammer": {"name": "Молот глубин", "slot": "weapon", "dmg": 24, "armor": 0, "art": "hammer", "relic": true,
+		"grants": ["giant_slayer", "armor_breaker"], "glow": Color.CADET_BLUE, "icon": Vector2i(11, 5)},
 	"echo_dust": {"name": "Прах эха", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(2, 20), "stack": 99},
 	"elite_mark": {"name": "Метка чемпиона", "slot": "trophy", "dmg": 0, "armor": 0, "icon": Vector2i(4, 18), "stack": 99},
 	# компоненты — из трофеев; из компонентов — реликвии
@@ -82,7 +86,7 @@ const COIN_NAMES := ["Платиновый Осколок", "Золотой", "�
 const COIN_SHORT := ["пл.", "зол.", "сер.", "мед."]
 const COIN_SHEET := preload("res://assets/custom/coins.png")     # медь, серебро, золото, платина
 # цена предметов в медяках (до множителя редкости)
-const VALUE := {"recipe_scrap": 25, "recipe_acid_blade": 700, "recipe_moon_bow": 900, "recipe_mountain_hammer": 1500,
+const VALUE := {"bell_tongue": 65, "recipe_bell_hammer": 1500, "bell_hammer": 4500, "recipe_scrap": 25, "recipe_acid_blade": 700, "recipe_moon_bow": 900, "recipe_mountain_hammer": 1500,
 	"recipe_soul_lantern": 1100, "recipe_shadow_fang": 1100, "recipe_dawn_scepter": 1200,
 	"slime_gel": 2, "wolf_fang": 6, "golem_shard": 40, "echo_dust": 5, "elite_mark": 30,
 	"acid_essence": 60, "pack_charm": 120, "golem_heart": 300, "lantern_soul": 150, "champion_seal": 260,

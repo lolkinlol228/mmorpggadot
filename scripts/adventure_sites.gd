@@ -2,6 +2,10 @@ extends RefCounted
 ## Точки добычи, два поселения и пещера на существующей карте.
 
 const MINE := Rect2(2600, 200, 900, 700)
+# Перемычки оставляют по одному проходу между четырьмя выработками.
+const MINE_WALLS := [Rect2(2850, 200, 18, 482), Rect2(2850, 758, 18, 142),
+	Rect2(3020, 200, 18, 338), Rect2(3020, 614, 18, 286),
+	Rect2(3270, 200, 18, 172), Rect2(3270, 448, 18, 452)]
 const MINE_GATE := Vector2(1648, 1100)
 const MINE_EXIT := Vector2(2650, 815)
 const CAVE := Rect2(2030, 1440, 330, 130)
@@ -26,6 +30,17 @@ const HAZARDS := [
 
 
 ## Находит точку вне препятствий карты.
+static func mine_wall_between(a: Vector2, b: Vector2) -> bool:
+	for wall: Rect2 in MINE_WALLS:
+		var top_right := Vector2(wall.end.x, wall.position.y)
+		var bottom_left := Vector2(wall.position.x, wall.end.y)
+		if Geometry2D.segment_intersects_segment(a, b, wall.position, bottom_left) != null or Geometry2D.segment_intersects_segment(a, b, top_right, wall.end) != null:
+			return true
+		if Geometry2D.segment_intersects_segment(a, b, wall.position, top_right) != null or Geometry2D.segment_intersects_segment(a, b, bottom_left, wall.end) != null:
+			return true
+	return false
+
+
 static func open_point(world, origin: Vector2) -> Vector2:
 	if not world.blocked(origin, 9.0):
 		return origin

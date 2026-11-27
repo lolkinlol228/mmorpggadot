@@ -175,7 +175,7 @@ func strike(pid: int, center: Vector2, radius: float, mult: float, crit_bonus: f
 	var n := 0
 	for eid in host.enemies.keys():
 		var e: Dictionary = host.enemies.get(eid, {})
-		if e.is_empty() or e.pos.distance_to(center) > radius + Items.ENEMIES[e.kind].radius:
+		if e.is_empty() or eid == opts.get("pierced", -1) or e.pos.distance_to(center) > radius + Items.ENEMIES[e.kind].radius:
 			continue
 		hit_enemy(pid, eid, mult, crit_bonus, opts)
 		n += 1
@@ -194,6 +194,8 @@ func bolt(pid: int, dir: Vector2, reach: float, mult: float, aoe: float, crit_bo
 		var rel: Vector2 = e.pos - from
 		var t := rel.dot(dir)
 		if t >= 0 and t <= reach and absf(rel.cross(dir)) <= float(Items.ENEMIES[e.kind].radius) + 6.0:
+			if host.Sites.MINE.has_point(from) and host.Sites.mine_wall_between(from, e.pos):
+				continue
 			hits.append([t, eid, e.pos])
 	hits.sort()
 	var piercing: bool = p.equip.get("weapon", {}).get("forge") == "pierce"
@@ -207,6 +209,7 @@ func bolt(pid: int, dir: Vector2, reach: float, mult: float, aoe: float, crit_bo
 			strike(pid, hits[i][2], aoe, mult, crit_bonus, opts)
 		elif host.enemies.has(hits[i][1]):
 			hit_enemy(pid, hits[i][1], mult, crit_bonus, opts)
+			opts.pierced = hits[i][1]
 	if count > 0 and aoe <= 0 and Rules.res_kind(p) == "rage":
 		add_res(p, RAGE_PER_HIT)
 

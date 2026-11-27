@@ -56,6 +56,8 @@ func _auto_pickup() -> void:
 		return
 	var now := Time.get_ticks_msec()
 	for lid in game.loot_views:
+		if game.loot_views[lid].item.get("reserved_other", false):
+			continue
 		if game.loot_views[lid].position.distance_to(game.my_pos) > game.PICKUP_RADIUS * Rules.Gifts.factor(game.me, "pickup"):
 			continue
 		if game.me.inv.size() >= Items.bag_capacity(game.me) and not Items.is_stack(game.loot_views[lid].item) and game.loot_views[lid].item.base != "coins":
@@ -81,6 +83,9 @@ func c_loot(lid: int, item: Dictionary, pos: Vector2) -> void:
 
 
 func _add_loot(lid: int, item: Dictionary, pos: Vector2, fresh: bool) -> void:
+	if game.loot_views.has(lid):
+		game.loot_views[lid].update_label(item)
+		return
 	var v = LootView.new()
 	v.item = item
 	v.position = pos

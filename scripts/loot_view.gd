@@ -7,10 +7,21 @@ var t := 0.0
 
 func _ready() -> void:
 	t = randf() * 3.0
-	if int(item.rarity) >= 1 or item.shiny:
+	update_label(item)
+
+
+var caption: Label
+
+func update_label(value: Dictionary) -> void:
+	item = value
+	var show_name := int(item.rarity) >= 1 or bool(item.shiny) or item.has("reserved_for")
+	if not show_name:
+		if caption:
+			caption.hide()
+		return
+	if not caption:
 		var l := Label.new()
 		l.z_index = 50                     # название поверх зданий
-		l.text = Items.display_name(item)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.size = Vector2(120, 10)
 		l.position = Vector2(-60, -26)
@@ -20,6 +31,11 @@ func _ready() -> void:
 		l.add_theme_constant_override("outline_size", 4)
 		l.add_theme_color_override("font_shadow_color", Color.BLACK)
 		add_child(l)
+		caption = l
+	caption.text = Items.display_name(item)
+	if item.has("reserved_for"):
+		caption.text += " · " + str(item.reserved_for)
+	caption.show()
 
 
 func _process(delta: float) -> void:

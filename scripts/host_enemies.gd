@@ -73,6 +73,9 @@ func _kill(eid: int, killer: int) -> void:
 	host._all("c_enemy_died", [eid])
 	host.mine.killed(e, killer)
 	var boss: bool = e.kind in ["golem", "warden"]
+	var party: Array = host.rewards.participants(e, killer) if boss else []
+	if boss:
+		host.rewards.distribute(e, party)
 	var cr: Array = Items.COIN_DROPS[e.kind]
 	var ctx := {"eid": eid, "enemy": e, "coins": randi_range(cr[0], cr[1]), "coin_mult": 1.0}
 	var drop_mods := {}
@@ -103,8 +106,12 @@ func _kill(eid: int, killer: int) -> void:
 			owner.gift_rarity_shift = -shift
 		var item_ctx := {"enemy": e, "item": Items.roll_drop(boss, drop_mods, shift)}
 		host.gifts.fire(killer, "loot", item_ctx)
-		host.drop(item_ctx.item, e.pos + Vector2(randf_range(-36, 36), randf_range(-36, 36)))
+		var point: Vector2 = e.pos + Vector2(randf_range(-36, 36), randf_range(-36, 36))
+		if boss:
+			host.rewards.equipment(item_ctx.item, point, party)
+		else:
+			host.drop(item_ctx.item, point)
 	for trophy in preload("res://scripts/relics.gd").roll_trophies(e, loot_mult):   # трофеи для реликвий
 		host.drop(trophy, e.pos + Vector2(randf_range(-20, 20), randf_range(-14, 14)))
 	if boss:
-		host._all("c_announce", ["%s повержен!" % Items.ENEMIES[e.kind].name, Color(1, 0.8, 0.4)])
+		host._all("c_announce", ["%s повержен! Редкие вещи распределены по очереди: 30 с подбирает герой над вещью, затем любой." % Items.ENEMIES[e.kind].name, Color(1, 0.8, 0.4)])

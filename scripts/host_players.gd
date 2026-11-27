@@ -35,7 +35,9 @@ func register(data: Dictionary) -> void:
 		es.append([eid, e.kind, e.pos, e.hp, e.max_hp, e.get("elite", false)])
 	var ls := []
 	for lid in host.loots:
-		ls.append([lid, host.loots[lid].item, host.loots[lid].pos])
+		var row: Array = host.rewards.visible(lid, id)
+		if not row.is_empty():
+			ls.append(row)
 	host._to(id, "c_init", [ps, es, ls, host._private(id)])
 	for mark in host.professions.carcasses:
 		host._to(id, "c_adventure_mark", [mark, host.professions.carcasses[mark].pos, true])
@@ -70,7 +72,7 @@ func update_pos(pos: Vector2, facing: Vector2) -> void:
 	if p.pos.distance_squared_to(pos) > 0.01:
 		p.moved_at = Time.get_ticks_msec()
 	if host.Sites.MINE.has_point(p.pos):
-		if not host.Sites.MINE.grow(-10).has_point(pos):
+		if not host.Sites.MINE.has_point(pos) or World.blocked(pos, 5.0) or host.Sites.mine_wall_between(p.pos, pos):
 			return
 		p.pos = pos
 	elif host.Sites.MINE.has_point(pos) or (not host.mine.opened and pos.distance_to(host.Sites.MINE_GATE) < 18.0):

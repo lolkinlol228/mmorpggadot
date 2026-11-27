@@ -65,6 +65,9 @@ func add_circle(p: Vector2, r: float) -> void:
 
 func blocked(p: Vector2, r: float) -> bool:
 	if Sites.MINE.has_point(p):
+		for wall: Rect2 in Sites.MINE_WALLS:
+			if wall.grow(r).has_point(p):
+				return true
 		return not Sites.MINE.grow(-maxf(10.0, r)).has_point(p)
 	if not mine_open and p.distance_to(Sites.MINE_GATE) < 13.0 + r:
 		return true

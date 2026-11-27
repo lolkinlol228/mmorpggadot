@@ -8,7 +8,7 @@ extends RefCounted
 
 # вид врага -> [трофей, шанс, от, до]
 const DROPS := {"slime": ["slime_gel", 0.18, 1, 2], "wolf": ["wolf_fang", 0.10, 1, 1],
-	"golem": ["golem_shard", 1.0, 1, 2], "undead": ["echo_dust", 0.20, 1, 2]}
+	"undead": ["echo_dust", 0.20, 1, 2]}
 const ELITE_DROP := "elite_mark"            # каждый элитный враг (не босс) — одна метка
 
 # items — предметы из сумки (трофеи / компоненты), mats — материалы ремёсел (p.materials)
@@ -20,6 +20,7 @@ const COMPONENTS := {
 	"champion_seal": {"items": {"elite_mark": 5}, "mats": {"star_iron": 3}},
 }
 const RELICS := {
+	"bell_hammer": {"items": {"bell_tongue": 3}, "mats": {"star_iron": 5}},
 	"acid_blade": {"items": {"acid_essence": 2}, "mats": {"star_iron": 5}},
 	"moon_bow": {"items": {"pack_charm": 1, "acid_essence": 1}, "mats": {"ancient_wood": 5}},
 	"mountain_hammer": {"items": {"golem_heart": 1, "champion_seal": 1}, "mats": {"star_iron": 10}},

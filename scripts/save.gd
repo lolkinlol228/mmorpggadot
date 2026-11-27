@@ -12,11 +12,13 @@ var FATE_PATH := "user://fate.json"
 
 
 func _init() -> void:
-	if OS.get_cmdline_user_args().has("--autotest"):
+	if OS.get_cmdline_user_args().has("--autotest") or OS.get_cmdline_user_args().has("--mine-test"):
 		ROOT = "user://autotest/"
 		DirAccess.make_dir_recursive_absolute(ROOT)
 		CHAR_DIR = ROOT + "chars"
 		WORLD_PATH = ROOT + "world.json"
+		if OS.get_cmdline_user_args().has("--mine-test"):
+			WORLD_PATH = ROOT + "mine-%d-%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
 		LAST_NAME_PATH = ROOT + "last_name.txt"
 		LOOK_PATH = ROOT + "last_look.json"
 		FATE_PATH = ROOT + "fate.json"
