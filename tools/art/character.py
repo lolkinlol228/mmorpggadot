@@ -57,7 +57,7 @@ RACES = {
     "felin": {"tones": ["light", "mid", "dark"],
               "hair": ["short", "crop", "straight", "spiky", "long", "tail", "bob", "bun", "braid"],
               "beards": ["none"],
-              "marks": ["whiskers", "stripes", "none", "freckles"],
+              "marks": ["none", "whiskers", "stripes", "freckles"],
               "eyes": ["amber", "green", "yellow", "blue"]},
     "goblin": {"tones": ["lime", "khaki", "greygreen"], "dy": 3, "w": -1,
                "hair": ["tufts", "bald", "slick", "mohawk", "topknot", "spiky", "tail"],
@@ -254,12 +254,7 @@ def head_part(d, f, race, tone):
     if race == "orc":
         c.sphere(cx - 0.5, cy + 3.2, 5.6 - (0.6 if fem else 0), 2.6, m, z=1)
     if race in ("elf", "goblin"):
-        length, rise = (3.7, 4.0) if race == "elf" else (6.0, 1.5)              # гоблинские уши — в стороны
-        if d == 2:
-            c.capsule(cx - 2.0, cy + 0.5, cx - 2.0 - length * 0.9, cy + 0.5 - rise, 1.1, m, z=7)
-        else:
-            c.capsule(cx - 6.3, cy + 0.8, cx - 6.3 - length, cy + 0.8 - rise, 1.1, m, z=-1)
-            c.capsule(cx + 5.3, cy + 0.8, cx + 5.3 + length, cy + 0.8 - rise, 1.1, m, z=-1)
+        pass                                     # острые уши — отдельный слой поверх волос (pointy_ears_part)
     elif race != "felin":
         if d == 2:
             c.sphere(cx - 2.0, cy + 0.6, 1.5, 1.9, m, z=7)
@@ -365,9 +360,9 @@ def marks_part(d, f, kind):
         add(bone, [(1, 3), (2, 3), (3, 3), (1, 4), (3, 4)], [(2, 3), (3, 3), (2, 4)])
         add(gap, [(2, 4)], [(3, 4)])
     elif kind == "whiskers":                    # вибриссы кошколюда торчат за щёки
-        col = (62, 52, 52)
-        add(col, [(-6, 3), (-7, 3), (-8, 2), (-6, 4), (-7, 5), (4, 3), (5, 3), (6, 2), (4, 4), (5, 5)],
-            [(5, 3), (6, 3), (7, 2), (5, 4), (6, 5)])
+        col = (206, 200, 192)
+        add(col, [(-6, 3), (-7, 2), (-6, 4), (-7, 5), (5, 3), (6, 2), (5, 4), (6, 5)],
+            [(5, 3), (6, 2), (5, 4), (6, 5)])
     elif kind == "stripes":                     # полосы на лбу и щеках
         col = (104, 70, 48)
         add(col, [(-6, 1), (-5, 2), (-6, 3), (-5, 4), (4, 1), (3, 2), (4, 3), (3, 4), (-2, -1), (0, -1)],
@@ -419,6 +414,45 @@ def beard_part(d, f, style, color):
     else:
         c.capsule(cx + 2, cy + 3.6, cx + 5.5, cy + 3.6, 0.8, m, z=4)
     return c.render()
+
+def pointy_ears_part(d, f, race, tone):
+    """Уши эльфа (длинный лист, кончик вверх-назад) и гоблина (широкие, в стороны) — слой поверх волос,
+    чтобы причёска их не прятала; основание срезано без контура, тень раковины внутри."""
+    if race not in ("elf", "goblin"):
+        return None
+    skin = SKIN_TONES[tone]
+    m = Mat(skin)
+    g = skel(d, f)
+    cx, cy = g["head"]
+    wide = {"goblin": 0.2}.get(race, 0.0) - (0.2 if SEX == "f" else 0.0)
+    length, rise, r0 = (5.4, 4.4, 1.5) if race == "elf" else (6.0, 1.6, 2.0)
+    if d == 2:
+        ears = [((cx - 1.5, cy + 1.2), (cx - 1.5 - length * 0.95, cy + 1.2 - rise))]
+    else:
+        ears = [((cx - 5.6 - wide, cy + 1.2), (cx - 5.6 - wide - length, cy + 1.2 - rise)),
+                ((cx + 4.6 + wide, cy + 1.2), (cx + 4.6 + wide + length, cy + 1.2 - rise))]
+    c = Canvas(32, 32, pad=CELL_PAD)
+    for (bx, by), (tx, ty) in ears:
+        for i in range(10):
+            t = i / 9
+            rr = r0 * (1 - t) ** 0.8 + 0.35
+            c.sphere(bx + (tx - bx) * t, by + (ty - by) * t, rr, rr * 0.9, m, z=2 + t)
+    img = c.render(ambient=0.42)
+    px = img.load()
+    shade_ = tuple(int(v * 0.74) for v in skin)
+    for (bx, by), (tx, ty) in ears:
+        for t in (0.2, 0.35, 0.5):                                  # ушная раковина
+            _put(img, bx + (tx - bx) * t, by + (ty - by) * t + 0.5, shade_)
+        # у основания ухо входит в голову: убираем контур там, где начинается череп
+        for yy in range(img.height):
+            for xx in range(img.width):
+                gx, gy = xx - CELL_PAD + 0.5, yy - CELL_PAD + 0.5
+                hx = cx - 0.5 if d != 2 else cx - 0.5
+                inside = ((gx - hx) / (6.0 if d == 2 else 6.2)) ** 2 + ((gy - cy) / 5.8) ** 2 < 1
+                if inside and px[xx, yy][3] and sum(px[xx, yy][:3]) < sum(skin) * 0.5:
+                    px[xx, yy] = (0, 0, 0, 0)
+    return img
+
 
 def cat_ears_part(d, f, color):
     """Кошачьи уши растут из причёски: та же фактура прядей, слегка разведены в стороны.

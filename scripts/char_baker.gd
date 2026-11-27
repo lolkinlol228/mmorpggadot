@@ -69,7 +69,12 @@ static func _layer_source(layer: String, equip: Dictionary, look: Dictionary) ->
 		"beard":
 			return "beard_%s_%s" % [look.beard, look.hair_color] if look.beard != "none" else ""
 		"ears":
-			return "ears_" + look.hair_color if look.race == "felin" and not covered else ""
+			if covered:
+				return ""
+			if look.race == "felin":
+				return "ears_" + look.hair_color
+			# острые уши эльфа и гоблина — поверх волос, иначе причёска их прячет
+			return "%s_ears_%s_%s" % [look.sex, look.race, look.skin] if look.race in ["elf", "goblin"] else ""
 		"tail":
 			return "tail_" + look.hair_color if look.race == "felin" else ""
 		"skirt", "hat", "weapon", "weapon_back":
