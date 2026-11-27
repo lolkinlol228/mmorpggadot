@@ -253,8 +253,20 @@ def head_part(d, f, race, tone):
     c.sphere(cx - 0.5, cy, (6.4 if d != 2 else 6.0) + wide, 6.0, m, keep=lambda x, y: y <= cy + 5)
     if race == "orc":
         c.sphere(cx - 0.5, cy + 3.2, 5.6 - (0.6 if fem else 0), 2.6, m, z=1)
-    if race in ("elf", "goblin"):
-        pass                                     # острые уши — отдельный слой поверх волос (pointy_ears_part)
+    ear_lines = []
+    if race in ("elf", "goblin"):               # острые уши: лист с широким основанием, под волосами
+        length, rise, r0 = (5.4, 4.4, 1.5) if race == "elf" else (6.0, 1.6, 2.0)
+        if d == 2:
+            ears = [((cx - 1.8, cy + 1.2), (cx - 1.8 - length * 1.05, cy + 1.2 - rise * 1.1), 7)]
+        else:
+            ears = [((cx - 5.8 - wide, cy + 1.2), (cx - 5.8 - wide - length, cy + 1.2 - rise), -1),
+                    ((cx + 4.8 + wide, cy + 1.2), (cx + 4.8 + wide + length, cy + 1.2 - rise), -1)]
+        for (bx, by), (tx, ty), z in ears:
+            for i in range(10):
+                t = i / 9
+                rr = r0 * (1 - t) ** 0.8 + 0.35
+                c.sphere(bx + (tx - bx) * t, by + (ty - by) * t, rr, rr * 0.9, m, z=z + t)
+            ear_lines.append(((bx, by), (tx, ty)))
     elif race != "felin":
         if d == 2:
             c.sphere(cx - 2.0, cy + 0.6, 1.5, 1.9, m, z=7)
@@ -274,6 +286,9 @@ def head_part(d, f, race, tone):
     shade_ = tuple(int(v * 0.78) for v in skin)
     lip = tuple(int(v * k) for v, k in zip(skin, (0.9, 0.66, 0.66) if fem else (0.74, 0.56, 0.56)))
     tusk = (238, 232, 210)
+    for (bx, by), (tx, ty) in ear_lines:                                         # ушная раковина
+        for t in (0.2, 0.35, 0.5):
+            _put(img, bx + (tx - bx) * t, by + (ty - by) * t + 0.5, shade_)
 
     def eye(ex, ey, lash_side):
         _put(img, ex, ey, iris)
@@ -414,45 +429,6 @@ def beard_part(d, f, style, color):
     else:
         c.capsule(cx + 2, cy + 3.6, cx + 5.5, cy + 3.6, 0.8, m, z=4)
     return c.render()
-
-def pointy_ears_part(d, f, race, tone):
-    """Уши эльфа (длинный лист, кончик вверх-назад) и гоблина (широкие, в стороны) — слой поверх волос,
-    чтобы причёска их не прятала; основание срезано без контура, тень раковины внутри."""
-    if race not in ("elf", "goblin"):
-        return None
-    skin = SKIN_TONES[tone]
-    m = Mat(skin)
-    g = skel(d, f)
-    cx, cy = g["head"]
-    wide = {"goblin": 0.2}.get(race, 0.0) - (0.2 if SEX == "f" else 0.0)
-    length, rise, r0 = (5.4, 4.4, 1.5) if race == "elf" else (6.0, 1.6, 2.0)
-    if d == 2:
-        ears = [((cx - 1.5, cy + 1.2), (cx - 1.5 - length * 0.95, cy + 1.2 - rise))]
-    else:
-        ears = [((cx - 5.6 - wide, cy + 1.2), (cx - 5.6 - wide - length, cy + 1.2 - rise)),
-                ((cx + 4.6 + wide, cy + 1.2), (cx + 4.6 + wide + length, cy + 1.2 - rise))]
-    c = Canvas(32, 32, pad=CELL_PAD)
-    for (bx, by), (tx, ty) in ears:
-        for i in range(10):
-            t = i / 9
-            rr = r0 * (1 - t) ** 0.8 + 0.35
-            c.sphere(bx + (tx - bx) * t, by + (ty - by) * t, rr, rr * 0.9, m, z=2 + t)
-    img = c.render(ambient=0.42)
-    px = img.load()
-    shade_ = tuple(int(v * 0.74) for v in skin)
-    for (bx, by), (tx, ty) in ears:
-        for t in (0.2, 0.35, 0.5):                                  # ушная раковина
-            _put(img, bx + (tx - bx) * t, by + (ty - by) * t + 0.5, shade_)
-        # у основания ухо входит в голову: убираем контур там, где начинается череп
-        for yy in range(img.height):
-            for xx in range(img.width):
-                gx, gy = xx - CELL_PAD + 0.5, yy - CELL_PAD + 0.5
-                hx = cx - 0.5 if d != 2 else cx - 0.5
-                inside = ((gx - hx) / (6.0 if d == 2 else 6.2)) ** 2 + ((gy - cy) / 5.8) ** 2 < 1
-                if inside and px[xx, yy][3] and sum(px[xx, yy][:3]) < sum(skin) * 0.5:
-                    px[xx, yy] = (0, 0, 0, 0)
-    return img
-
 
 def cat_ears_part(d, f, color):
     """Кошачьи уши растут из причёски: та же фактура прядей, слегка разведены в стороны.

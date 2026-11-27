@@ -73,7 +73,6 @@ def build_char(preview_path=None):
         for race, rd in ch.RACES.items():
             for tone in rd["tones"]:
                 L[f"{sex}_head_{race}_{tone}"] = ch.sheet(lambda d, f, r=race, t=tone: ch.head_part(d, f, r, t))
-                L[f"{sex}_ears_{race}_{tone}"] = ch.sheet(lambda d, f, r=race, t=tone: ch.pointy_ears_part(d, f, r, t))
         for tone in ch.SKIN_TONES:
             for hl in ("hands", "hands_back"):
                 L[f"{sex}_{hl}_{tone}"] = ch.sheet(lambda d, f, t=tone, h=hl: ch.hands_part(h, d, f, t))
