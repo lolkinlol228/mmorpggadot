@@ -421,18 +421,31 @@ def beard_part(d, f, style, color):
     return c.render()
 
 def cat_ears_part(d, f, color):
-    m = Mat(HAIR_COLORS[color])
-    inner = Mat((226, 150, 160))
+    """Кошачьи уши растут из причёски: та же фактура прядей, слегка разведены в стороны.
+    Низ уха утоплен в волосы и срезан без контура — нет шва «картинка на картинке»."""
+    m = Mat(HAIR_COLORS[color], tex=tex_strands)
+    inner = Mat((214, 140, 150))
     g = skel(d, f)
     cx, cy = g["head"]
     c = Canvas(32, 32, pad=CELL_PAD)
-    spots = [(-4.5, -1), (3.5, 1)] if d != 2 else [(-1.5, -1)]
+    spots = [(-4.0, -1), (3.0, 1)] if d != 2 else [(-1.5, -1)]
     for (dx, side) in spots:
-        x = cx - 0.5 + dx
-        c.cone(x, cy - 11, cy - 5, 2.6, m, z=2)
+        bx, by = cx - 0.5 + dx, cy - 4.0                    # основание — внутри волос
+        tx, ty = bx + side * (1.6 if d != 2 else -1.0), cy - 10.5
+        for i in range(9):                                   # сужающийся клин от основания к кончику
+            t = i / 8
+            c.sphere(bx + (tx - bx) * t, by + (ty - by) * t, 2.7 * (1 - t) + 0.45, 1.2, m, z=2 + t)
         if d == 0:
-            c.cone(x, cy - 9.5, cy - 6, 1.1, inner, z=3)
-    return c.render()
+            for i in range(5):
+                t = 0.25 + i / 8
+                c.sphere(bx + (tx - bx) * t, by + (ty - by) * t + 0.3, 1.3 * (1 - t) + 0.3, 0.9, inner, z=4)
+    img = c.render()
+    cut = int(cy - 5) + CELL_PAD                             # ниже — волосы: срезаем вместе с контуром
+    px = img.load()
+    for yy in range(cut + 1, img.height):
+        for xx in range(img.width):
+            px[xx, yy] = (0, 0, 0, 0)
+    return img
 
 
 def tail_part(d, f, color):
