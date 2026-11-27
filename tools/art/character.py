@@ -277,7 +277,7 @@ def head_part(d, f, race, tone):
     iris = EYE_KEY
     blush = tuple(min(255, int(v * k)) for v, k in zip(skin, (1.12, 0.86, 0.86)))
     shade_ = tuple(int(v * 0.78) for v in skin)
-    lip = tuple(int(v * k) for v, k in zip(skin, (0.82, 0.42, 0.48) if fem else (0.72, 0.5, 0.52)))
+    lip = tuple(int(v * k) for v, k in zip(skin, (0.9, 0.66, 0.66) if fem else (0.74, 0.56, 0.56)))
     tusk = (238, 232, 210)
 
     def eye(ex, ey, lash_side):
@@ -299,8 +299,6 @@ def head_part(d, f, race, tone):
             _put(img, cx - 2, cy + 3, shade_)
         _put(img, cx - 2, cy + 4, lip)
         _put(img, cx - 1, cy + 4, lip)
-        if fem:
-            _put(img, cx - 2, cy + 5, tuple(int(v * 0.9) for v in lip))
         if race == "orc":
             for px, py in ((cx - 3, cy + 4), (cx + 1, cy + 4), (cx - 3, cy + 3), (cx + 1, cy + 3)):
                 _put(img, px, py, tusk)
@@ -485,14 +483,18 @@ def hands_part(layer, d, f, tone):
 def hair_back_part(d, f, style, color):
     """Волосы, которые спадают ЗА плечи (вид спереди): рисуются под телом и руками,
     чтобы длинные пряди не закрывали плечи, как шлем."""
-    if d != 0 or style != "long":
+    if d != 0 or style not in ("long", "braid"):
         return None
     m = Mat(HAIR_COLORS[color], tex=tex_strands)
     g = skel(d, f)
     cx, cy = g["head"]
     c = Canvas(32, 32, pad=CELL_PAD)
+    if style == "braid":                      # коса лежит на спине: спереди видно лишь кончик за плечом
+        for i in range(4):
+            c.sphere(cx + 4.5 + i * 0.4, cy + 3 + i * 1.8, 1.4 - i * 0.1, 1.1, m, z=-4)
+        return c.render()
     for sgn in (-1, 1):
-        c.capsule(cx - 0.5 + sgn * 6.4, cy + 1, cx - 0.5 + sgn * 7.4, cy + 10, 2.1, m, z=-4)
+        c.capsule(cx - 0.5 + sgn * 5.9, cy + 1, cx - 0.5 + sgn * 6.6, cy + 10, 1.8, m, z=-4)
     return c.render()
 
 
@@ -506,10 +508,10 @@ def _bare_hair(c, d, cx, cy, style, m):
                 c.capsule(hx + 5.0 * math.cos(r), cy - 0.5 - 5.0 * math.sin(r),
                           hx + 9.2 * math.cos(r), cy - 0.5 - 9.2 * math.sin(r), 1.3, m, z=3)
         else:
-            c.capsule(hx, cy - 4.8, hx, cy - 8.6, 1.1, m, z=3)
-            c.capsule(hx, cy - 8.2, hx + 0.4, cy - 10.6, 0.7, m, z=3)     # острый кончик
+            for (tx, ty) in ((-1.4, -9.4), (0.0, -10.8), (1.4, -9.4)):       # веер острых прядей
+                c.capsule(hx, cy - 5.0, hx + tx, cy + ty, 0.8, m, z=3)
             if d == 1:
-                c.capsule(hx, cy - 6, hx, cy + 2.0, 1.1, m, z=3)
+                c.capsule(hx, cy - 6, hx, cy + 2.0, 0.9, m, z=3)
     elif style == "topknot":
         kx = hx if d != 2 else hx - 1.5
         c.capsule(kx, cy - 5, kx, cy - 7.5, 1.3, m, z=3)
@@ -579,7 +581,7 @@ def hair_part(d, f, style, color):
     if style == "long":
         if d == 0:                            # у лица — короткие пряди, остальное за плечами (hair_back_part)
             for sgn in (-1, 1):
-                c.capsule(cx - 0.5 + sgn * 6.3, cy - 1, cx - 0.5 + sgn * 6.5, cy + 3, 1.6, m, z=4)
+                c.capsule(cx - 0.5 + sgn * 5.8, cy - 1, cx - 0.5 + sgn * 6.0, cy + 3, 1.2, m, z=4)
         elif d == 1:
             c.capsule(cx - 0.5, cy, cx - 0.5, cy + 11, 5.2, m, z=-2)
         else:
@@ -599,16 +601,13 @@ def hair_part(d, f, style, color):
         if d == 1:
             for i in range(5):
                 c.sphere(cx - 0.5, cy + 2 + i * 2.2, 1.9 - i * 0.12, 1.4, m, z=6)
-        elif d == 0:
-            for i in range(5):
-                c.sphere(cx + 5.0 + i * 0.25, cy + 2 + i * 2.0, 1.7 - i * 0.1, 1.3, m, z=6)
-        else:
+        elif d == 2:                          # спереди коса за спиной — в hair_back_part
             for i in range(5):
                 c.sphere(cx - 5.0 - i * 0.3, cy + 1 + i * 2.0, 1.7 - i * 0.1, 1.3, m, z=-1)
     elif style == "bob":                                                    # каре до подбородка
         if d == 0:
             for sgn in (-1, 1):
-                c.capsule(cx - 0.5 + sgn * 6.3, cy - 2, cx - 0.5 + sgn * 6.5, cy + 3.5, 1.7, m, z=4)
+                c.capsule(cx - 0.5 + sgn * 5.9, cy - 2, cx - 0.5 + sgn * 6.1, cy + 3.5, 1.3, m, z=4)
         elif d == 1:
             c.capsule(cx - 0.5, cy, cx - 0.5, cy + 4.5, 6.2, m, z=-2)
         else:
