@@ -30,44 +30,46 @@ RACES = {
     # dy — рост (сдвиг верха тела), w — ширина фигуры в пикселях (игра растягивает/сужает собранный кадр).
     # hair / beards / marks / eyes — что доступно расе в создании героя (первое — по умолчанию).
     "human": {"tones": ["light", "mid", "dark"],
-              "hair": ["short", "long", "tail", "spiky", "braid", "bob", "bun", "bald"],
+              "hair": ["short", "crop", "slick", "straight", "long", "tail", "spiky", "braid", "bob", "bun", "bald"],
               "beards": ["none", "full", "moustache", "stubble", "goatee"],
               "marks": ["none", "scar", "freckles", "warpaint"],
               "eyes": ["brown", "blue", "green", "grey", "amber"]},
     "elf": {"tones": ["light", "pale", "mid"], "dy": -1, "w": -1,
-            "hair": ["long", "tail", "braid", "bun", "bob", "short"],
+            "hair": ["straight", "long", "slick", "tail", "braid", "bun", "bob", "short"],
             "beards": ["none"],
             "marks": ["none", "leafmark", "freckles", "scar"],
             "eyes": ["green", "blue", "violet", "grey", "amber"]},
     "dwarf": {"tones": ["light", "mid", "dark"], "dy": 2, "w": 2,
-              "hair": ["short", "braid", "long", "topknot", "bald", "bun"],
+              "hair": ["crop", "short", "braid", "long", "topknot", "bald", "bun"],
               "beards": ["full", "braided", "moustache"],
               "marks": ["none", "soot", "runes", "scar"],
               "eyes": ["brown", "blue", "grey", "amber", "green"]},
     "orc": {"tones": ["green", "olive", "moss"], "w": 4,
-            "hair": ["mohawk", "topknot", "bald", "tail", "braid", "spiky"],
+            "hair": ["mohawk", "topknot", "crop", "bald", "tail", "braid", "spiky"],
             "beards": ["none", "goatee", "stubble", "moustache"],
             "marks": ["none", "warpaint", "tribal", "scar"],
             "eyes": ["red", "amber", "yellow", "brown"]},
     "undead": {"tones": ["pale", "ash", "bluish"], "w": -1,
-               "hair": ["wisps", "bald", "long", "short", "spiky"],
+               "hair": ["wisps", "bald", "slick", "straight", "long", "short", "spiky"],
                "beards": ["none", "stubble"],
                "marks": ["none", "stitches", "bones", "scar"],
                "eyes": ["cyan", "red", "green", "violet"]},
     "felin": {"tones": ["light", "mid", "dark"],
-              "hair": ["short", "spiky", "long", "tail", "bob", "bun", "braid"],
+              "hair": ["short", "crop", "straight", "spiky", "long", "tail", "bob", "bun", "braid"],
               "beards": ["none"],
               "marks": ["whiskers", "stripes", "none", "freckles"],
               "eyes": ["amber", "green", "yellow", "blue"]},
     "goblin": {"tones": ["lime", "khaki", "greygreen"], "dy": 3, "w": -1,
-               "hair": ["tufts", "bald", "mohawk", "topknot", "spiky", "tail"],
+               "hair": ["tufts", "bald", "slick", "mohawk", "topknot", "spiky", "tail"],
                "beards": ["none", "goatee", "moustache"],
                "marks": ["none", "earrings", "warpaint", "scar"],
                "eyes": ["yellow", "red", "amber", "green"]},
 }
 HAIR_COLORS = {"brown": (112, 72, 46), "black": (50, 46, 60), "blond": (226, 188, 112),
                "red": (180, 80, 46), "white": (214, 214, 226)}
-HAIR_STYLES = ["short", "long", "tail", "spiky", "braid", "bob", "bun", "bald", "mohawk", "tufts", "topknot", "wisps"]
+HAIR_STYLES = ["short", "long", "tail", "spiky", "braid", "bob", "bun", "bald", "mohawk", "tufts", "topknot", "wisps",
+               "crop", "slick", "straight"]
+FLAT_STYLES = ["crop", "slick", "straight"]   # гладкие: облегают череп, без пышной «шапки»
 BARE_STYLES = ["bald", "mohawk", "tufts", "topknot", "wisps"]     # без «шапки» волос: голый череп и пряди
 
 HOLD_ANGLE = {0: 72, 1: 100, 2: 38}
@@ -401,16 +403,19 @@ def beard_part(d, f, style, color):
         else:
             c.sphere(cx + 3.5, cy + 6.2, 1.4, 2.0, m, keep=lambda x, y: y >= cy + 4.6)
         return c.render()
-    if style in ("full", "braided"):
+    if style in ("full", "braided"):          # растёт от висков по линии челюсти — рот открыт
         if d == 0:
-            c.sphere(cx - 0.5, cy + 6.0, 5.2, 4.6, m, keep=lambda x, y: y >= cy + 4)
+            c.sphere(cx - 0.5, cy + 4.6, 6.0, 4.6, m,
+                     keep=lambda x, y: y >= (cy + 1.5 if abs(x + 0.5 - (cx - 0.5)) >= 4.6 else cy + 4.6))
         else:
-            c.sphere(cx + 2.5, cy + 6.0, 3.8, 4.2, m, keep=lambda x, y: y >= cy + 4)
+            c.capsule(cx - 1.0, cy + 1.0, cx + 1.0, cy + 4.0, 1.3, m, z=2)        # бакенбард от уха
+            c.sphere(cx + 2.8, cy + 5.0, 3.6, 3.8, m,
+                     keep=lambda x, y: y >= (cy + 2.5 if x < cx + 2 else cy + 4.6))
     if style == "braided":                                  # дварфийские косички с золотыми бусинами
         bead = Mat((226, 184, 92), spec=0.9)
-        for bx in ((cx - 2.5, cx + 1.5) if d == 0 else (cx + 3.0,)):
-            c.capsule(bx, cy + 8, bx + (0.0 if d == 0 else 0.5), cy + 13, 1.1, m, z=5)
-            c.sphere(bx + (0.0 if d == 0 else 0.3), cy + 11.2, 1.3, 0.8, bead, z=6)
+        for bx in ((cx - 2.5, cx + 1.5) if d == 0 else (cx + 3.5,)):
+            c.capsule(bx, cy + 7.5, bx + (0.0 if d == 0 else 0.5), cy + 12, 1.1, m, z=5)
+            c.sphere(bx + (0.0 if d == 0 else 0.3), cy + 10.4, 1.3, 0.8, bead, z=6)
     if d == 0:
         c.capsule(cx - 4, cy + 3.6, cx + 2.5, cy + 3.6, 0.9, m, z=4)
     else:
@@ -526,6 +531,29 @@ def _bare_hair(c, d, cx, cy, style, m):
             c.capsule(cx + x0, cy + y0, cx + x1, cy + y1, 0.8, m, z=3)
 
 
+def _flat_hair(c, d, cx, cy, style, color):
+    """Гладкие причёски по форме головы (голова: центр cx-0.5, радиусы 6.4/6.0 x 6.0):
+    короткая стрижка, зализанные назад (блестят), прямые гладкие до плеч."""
+    m = Mat(HAIR_COLORS[color], spec=0.7) if style == "slick" else Mat(HAIR_COLORS[color], tex=tex_strands)
+    line = cy - (3.2 if style == "slick" else 2.6)          # линия волос надо лбом
+    if d == 0:
+        c.sphere(cx - 0.5, cy - 0.3, 6.7, 6.0, m,
+                 keep=lambda x, y: y <= (cy + 0.5 if (x < cx - 5.6 or x > cx + 4.6) else line))
+    elif d == 1:
+        c.sphere(cx - 0.5, cy - 0.2, 6.7, 6.1, m, keep=lambda x, y: y <= cy + (4.0 if style == "slick" else 3.0))
+    else:
+        c.sphere(cx - 0.6, cy - 0.3, 6.3, 6.0, m,
+                 keep=lambda x, y: y <= (line if x > cx + 0.5 else cy + 2.5))
+    if style == "straight":                                  # прямые пряди, плоские, не шире головы
+        if d == 0:
+            for sgn in (-1, 1):
+                c.capsule(cx - 0.5 + sgn * 5.9, cy - 1, cx - 0.5 + sgn * 6.1, cy + 7, 1.2, m, z=4)
+        elif d == 1:
+            c.capsule(cx - 0.5, cy, cx - 0.5, cy + 8, 4.6, m, z=-2)
+        else:
+            c.capsule(cx - 3.8, cy - 1, cx - 4.2, cy + 7.5, 2.0, m, z=-2)
+
+
 def hair_part(d, f, style, color):
     m = Mat(HAIR_COLORS[color], tex=tex_strands)
     g = skel(d, f)
@@ -539,6 +567,8 @@ def hair_part(d, f, style, color):
 
     if style in BARE_STYLES:
         _bare_hair(c, d, cx, cy, style, m)
+    elif style in FLAT_STYLES:
+        _flat_hair(c, d, cx, cy, style, color)
     elif d == 0:
         c.sphere(cx - 0.5, cy - 1.0, 6.8, 6.0, m, keep=fringe_down)
     elif d == 1:

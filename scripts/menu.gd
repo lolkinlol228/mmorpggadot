@@ -23,7 +23,7 @@ const NAMES := {"human": "человек", "elf": "эльф", "dwarf": "двар
 	"bald": "лысый", "mohawk": "ирокез", "tufts": "клочки", "topknot": "узел", "wisps": "пряди",
 	"goatee": "бородка", "braided": "косички", "leafmark": "листья", "soot": "копоть", "runes": "руны",
 	"tribal": "татуировки", "stitches": "швы", "bones": "оскал", "whiskers": "вибриссы",
-	"stripes": "полоски", "earrings": "серьги",
+	"stripes": "полоски", "earrings": "серьги", "crop": "стрижка", "slick": "зализанные", "straight": "прямые",
 	"brown": "каштан", "black": "чёрный", "blond": "блонд", "red": "рыжий", "white": "седой",
 	"none": "нет", "full": "густая", "moustache": "усы", "stubble": "щетина",
 	"scar": "шрам", "freckles": "веснушки", "warpaint": "раскраска"}
