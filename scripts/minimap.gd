@@ -24,7 +24,14 @@ func _process(delta: float) -> void:
 
 
 func _to_map(p: Vector2, inner: Rect2) -> Vector2:
+	if Sites.MINE.has_point(p):
+		var inset := mine_inset(inner)
+		return inset.position + (p - Sites.MINE.position) / Sites.MINE.size * inset.size
 	return inner.position + p / World.size * inner.size
+
+
+func mine_inset(inner: Rect2) -> Rect2:
+	return Rect2(inner.end - Vector2(39, 30), Vector2(39, 30))
 
 
 func _draw() -> void:
@@ -44,9 +51,12 @@ func _draw() -> void:
 		for source in Sites.SOURCES:
 			if (source[0] == "chest" and caches) or (source[0] == "ore" and ores):
 				draw_circle(_to_map(source[2], inner), 2.3, Color.GOLD if source[0] == "chest" else Color.SKY_BLUE)
+	if World.mine_open:
+		draw_rect(mine_inset(inner), Color("#20373c"))
+		draw_rect(mine_inset(inner), Color.CADET_BLUE, false)
 	for ev in game.enemy_views.values():
 		var p := _to_map(ev.position, inner)
-		if ev.kind == "golem":
+		if ev.kind in ["golem", "warden"]:
 			draw_rect(Rect2(p - Vector2(2, 2), Vector2(5, 5)), Color(1, 0.3, 0.2))
 			draw_rect(Rect2(p - Vector2(2, 2), Vector2(5, 5)), Color.BLACK, false, 1.0)
 		else:

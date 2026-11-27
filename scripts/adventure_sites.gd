@@ -1,6 +1,9 @@
 extends RefCounted
 ## Точки добычи, два поселения и пещера на существующей карте.
 
+const MINE := Rect2(2600, 200, 900, 700)
+const MINE_GATE := Vector2(1648, 1100)
+const MINE_EXIT := Vector2(2650, 815)
 const CAVE := Rect2(2030, 1440, 330, 130)
 const CAMPS := {"ford": Vector2(1020, 1005), "east": Vector2(1585, 1080)}
 const CAMP_NAMES := {"ford": "Пепельный Брод", "east": "Пристань"}

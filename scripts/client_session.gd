@@ -11,11 +11,12 @@ func c_self(priv: Dictionary) -> void:
 		Sfx.play("coins")
 	var old_level = int(game.me.get("level", 0))
 	game.me = priv
+	World.update_mine(priv)
 	game.me["_recv"] = Time.get_ticks_msec()
 	game.ui.refresh()
 	if old_level > 0 and int(game.me.level) > old_level and int(game.me.points) > 0:
 		game.ui.add_feed("Новые очки характеристик! Открой окно героя: C", Color(1, 0.85, 0.4))
-	Save.store_char({"hid": priv.hid, "name": Net.player_name, "coins": game.me.coins, "inv": game.me.inv, "equip": game.me.equip,
+	Save.store_char({"quests": priv.quests, "hid": priv.hid, "name": Net.player_name, "coins": game.me.coins, "inv": game.me.inv, "equip": game.me.equip,
 		"look": game.me.get("look", {}), "bank": game.me.get("bank", []), "bounties": game.me.get("bounties", {}),
 		"level": game.me.get("level", 1), "xp": game.me.get("xp", 0), "points": game.me.get("points", 0), "stats": game.me.get("stats", {}),
 		"cls": game.me.get("cls", "warrior"), "gifts": game.me.get("gifts", []), "gift_state": game.me.get("gift_state", {}), "materials": game.me.get("materials", {}), "professions": game.me.get("professions", {}),
@@ -74,6 +75,9 @@ func c_state(ps: Array, es: Array) -> void:
 		var ev = game.enemy_views.get(e[0])
 		if ev:
 			ev.target = e[1]
+			if e.size() >= 5:
+				ev.heading = e[3]
+				ev.phase = e[4]
 
 
 func c_chat(from: String, text: String) -> void:

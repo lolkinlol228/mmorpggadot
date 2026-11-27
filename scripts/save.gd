@@ -86,6 +86,7 @@ func sanitize_char(d) -> Dictionary:
 	else:
 		out.hid = Crypto.new().generate_random_bytes(16).hex_encode()
 	var n := str(d.get("name", "")).strip_edges().left(16)
+	out.quests = preload("res://scripts/mine_quest.gd").sanitize(d.get("quests", {}))
 	out.name = n if n != "" else "Игрок"
 	out.coins = clampi(int(d.get("coins", d.get("gold", 0))), 0, 999999999)   # старые сейвы: gold -> медяки
 	out.look = preload("res://scripts/char_baker.gd").sanitize_look(d.get("look", {}))

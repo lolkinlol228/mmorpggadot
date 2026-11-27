@@ -20,14 +20,19 @@ func _boss_alive() -> bool:
 
 
 func spawn_enemy(kind: String) -> void:
-	var k: Dictionary = Items.ENEMIES[kind]
 	var pos := World.random_spawn(kind)
 	if kind == "undead":
 		pos = host.Sites.open_point(World, host.Sites.CAVE.position + Vector2(randf_range(100, 305), randf_range(26, 103)))
+	spawn_at(kind, pos)
+
+
+func spawn_at(kind: String, pos: Vector2) -> int:
+	var k: Dictionary = Items.ENEMIES[kind]
 	var eid = host._nid()
 	host.enemies[eid] = {"id": eid, "kind": kind, "pos": pos, "hp": k.hp, "max_hp": k.hp, "cd": 0.0,
 		"wander": Vector2.ZERO, "wander_t": 0.0}
 	host._all("c_enemy_spawn", [[eid, kind, pos, k.hp, k.hp]])
+	return eid
 
 
 func _enemy_ai(delta: float) -> void:
@@ -37,6 +42,9 @@ func _enemy_ai(delta: float) -> void:
 		var e: Dictionary = host.enemies[eid]
 		var k: Dictionary = Items.ENEMIES[e.kind]
 		e.cd = maxf(0.0, e.cd - delta)
+		if e.kind in ["shell", "ringer", "warden"]:
+			host.mine.brain(e, host.enemy_gift_ai.target(e, k), k, delta, Time.get_ticks_msec())
+			continue
 		if int(e.get("stun_until", 0)) > Time.get_ticks_msec():
 			continue                                        # оглушён (парирование): стоит и не бьёт
 		var target: int = host.enemy_gift_ai.target(e, k)
@@ -63,7 +71,8 @@ func _kill(eid: int, killer: int) -> void:
 		p.get("gift_first", {}).erase(eid)
 	host.enemies.erase(eid)
 	host._all("c_enemy_died", [eid])
-	var boss: bool = e.kind == "golem"
+	host.mine.killed(e, killer)
+	var boss: bool = e.kind in ["golem", "warden"]
 	var cr: Array = Items.COIN_DROPS[e.kind]
 	var ctx := {"eid": eid, "enemy": e, "coins": randi_range(cr[0], cr[1]), "coin_mult": 1.0}
 	var drop_mods := {}
@@ -98,4 +107,4 @@ func _kill(eid: int, killer: int) -> void:
 	for trophy in preload("res://scripts/relics.gd").roll_trophies(e, loot_mult):   # трофеи для реликвий
 		host.drop(trophy, e.pos + Vector2(randf_range(-20, 20), randf_range(-14, 14)))
 	if boss:
-		host._all("c_announce", ["Голем повержен! Лут лежит на земле.", Color(1, 0.8, 0.4)])
+		host._all("c_announce", ["%s повержен!" % Items.ENEMIES[e.kind].name, Color(1, 0.8, 0.4)])

@@ -132,17 +132,17 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 		dmg *= float(p.get("gift_riposte", Rules.PARRY.riposte))
 		p.erase("gift_riposte")
 		p.riposte_until = 0
-	if e.kind != "golem" and opts.has("execute") and float(e.hp) < float(e.max_hp) * float(opts.execute):
+	if e.kind not in ["golem", "warden"] and opts.has("execute") and float(e.hp) < float(e.max_hp) * float(opts.execute):
 		dmg *= 2.0
-	if e.kind != "golem" and not e.get("elite", false) and Gifts.has_flag(p, "execute15") and gifts.ratio(e) < 0.15:
+	if e.kind not in ["golem", "warden"] and not e.get("elite", false) and Gifts.has_flag(p, "execute15") and gifts.ratio(e) < 0.15:
 		dmg = maxf(dmg, e.hp)
-	var d := maxi(1, int(dmg))
+	var d: int = host.mine.damage(pid, e, maxi(1, int(dmg)))
 	var dealt := mini(int(e.hp), d)
 	e.hp = maxi(0, int(e.hp) - d)
 	host._all("c_enemy_hit", [eid, e.hp, d, crit])
 	if opts.has("slow"):
 		e.slow_factor = 0.5
-		e.slow_until = now_ms() + int(float(opts.slow) * 1000.0 * (Gifts.BOSS_RULES.cc_mult if e.kind == "golem" or e.get("elite", false) else 1.0))
+		e.slow_until = now_ms() + int(float(opts.slow) * 1000.0 * (Gifts.BOSS_RULES.cc_mult if e.kind in ["golem", "warden"] or e.get("elite", false) else 1.0))
 	var leech := clampf(float(opts.get("leech", 0.0)) + float(gifts.mod(pid, "lifesteal", ctx)), 0.0, Gifts.CAPS.lifesteal)
 	_heal(pid, int(dealt * leech))
 	ctx.damage = dealt

@@ -17,6 +17,7 @@ var serial := 0
 var boss_timer := 45.0
 var regen_acc := 0.0
 var net_acc := 0.0
+var mine
 var market
 var eco                      # host_economy.gd
 var gifts
@@ -29,6 +30,9 @@ var skills                   # host_skills.gd
 
 
 func _ready() -> void:
+	mine = preload("res://scripts/host_mine.gd").new()
+	mine.host = self
+	mine.setup()
 	host_players = preload("res://scripts/host_players.gd").new()
 	host_players.host = self
 	host_enemies = preload("res://scripts/host_enemies.gd").new()
@@ -98,7 +102,7 @@ func _public(pid: int) -> Dictionary:
 
 func _private(pid: int) -> Dictionary:
 	var p: Dictionary = players[pid]
-	return {"hid": p.hid, "inv": p.inv.duplicate(true), "equip": p.equip.duplicate(true), "coins": p.coins, "look": p.look,
+	return {"mine_open": mine.opened, "quests": p.quests.duplicate(), "hid": p.hid, "inv": p.inv.duplicate(true), "equip": p.equip.duplicate(true), "coins": p.coins, "look": p.look,
 		"bank": p.bank.duplicate(true), "bounties": p.bounties.duplicate(),
 		"materials": p.materials.duplicate(), "professions": p.professions.duplicate(), "tools": p.tools.duplicate(), "recipes": p.get("recipes", []).duplicate(),
 		"visited": p.visited.duplicate(), "temp_gifts": p.get("temp_gifts", {}).duplicate(), "cross_skill": p.cross_skill,
@@ -135,6 +139,7 @@ func update_pos(pos: Vector2, facing: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	host_players.sync_local()
+	mine.tick()
 	_enemy_ai(delta)
 	gifts.update()
 	professions.update()
@@ -210,7 +215,8 @@ func _hurt_player(pid: int, dmg: int, eid: int = -1, kind: String = "melee") -> 
 		p.erase("gift_riposte")
 		p.riposte_until = now + int(Rules.PARRY.riposte_time * 1000.0)
 		var e: Dictionary = enemies[eid]
-		e.stun_until = now + int(Rules.PARRY.stun * (Rules.Gifts.BOSS_RULES.cc_mult if e.kind == "golem" else 1.0) * 1000.0)
+		mine.interrupt(e, pid, now)
+		e.stun_until = now + int(Rules.PARRY.stun * (Rules.Gifts.BOSS_RULES.cc_mult if e.kind in ["golem", "warden"] else 1.0) * 1000.0)
 		if Rules.res_kind(p) == "rage":
 			skills.add_res(p, Rules.PARRY.rage)
 		var ctx := {"eid": eid, "enemy": e, "damage": dmg}
@@ -257,7 +263,11 @@ func _broadcast_state() -> void:
 		ps.append([pid, players[pid].pos, players[pid].facing])
 	var es := []
 	for eid in enemies:
-		es.append([eid, enemies[eid].pos, enemies[eid].hp])
+		var e: Dictionary = enemies[eid]
+		var row := [eid, e.pos, e.hp]
+		if Sites.MINE.has_point(e.pos):
+			row.append_array([e.get("facing", Vector2.LEFT), "open" if Time.get_ticks_msec() < int(e.get("open_until", 0)) else e.get("phase", "")])
+		es.append(row)
 	for pid in players:
 		if pid != game.my_id and multiplayer.get_peers().has(pid):
 			game.rpc_id(pid, "c_state", ps, es)
@@ -399,7 +409,9 @@ func adventure(op: String, arg: String) -> void:
 	var p = players.get(pid)
 	if not can_act(p) or int(p.trade) != 0:
 		return
-	if op in ["rescue", "recall", "time_stop", "copy", "cross", "tame"]:
+	if op in ["talk", "mine"]:
+		mine.action(pid, op, arg)
+	elif op in ["rescue", "recall", "time_stop", "copy", "cross", "tame"]:
 		talents.action(pid, op, arg)
 	else:
 		professions.handle(pid, op, arg)

@@ -69,7 +69,14 @@ func update_pos(pos: Vector2, facing: Vector2) -> void:
 	host.talents.movement(p, pos)
 	if p.pos.distance_squared_to(pos) > 0.01:
 		p.moved_at = Time.get_ticks_msec()
-	p.pos = pos.clamp(Vector2(24, 24), host.game.WORLD_SIZE - Vector2(24, 24))
+	if host.Sites.MINE.has_point(p.pos):
+		if not host.Sites.MINE.grow(-10).has_point(pos):
+			return
+		p.pos = pos
+	elif host.Sites.MINE.has_point(pos) or (not host.mine.opened and pos.distance_to(host.Sites.MINE_GATE) < 18.0):
+		return
+	else:
+		p.pos = pos.clamp(Vector2(24, 24), host.game.WORLD_SIZE - Vector2(24, 24))
 	p.facing = facing
 
 

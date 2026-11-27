@@ -234,12 +234,14 @@ func effect(pid: int, key: String, parameter: Variant, ctx: Dictionary, gift_id:
 				add_dot(pid, host.enemies[other], "burn", value, ctx)
 		"stun", "slow":
 			if not e.is_empty():
-				var duration := (2.0 if gift_id == "frost_touch" else value) * (float(Gifts.BOSS_RULES.cc_mult) if e.kind == "golem" or e.get("elite", false) else 1.0)
+				var duration := (2.0 if gift_id == "frost_touch" else value) * (float(Gifts.BOSS_RULES.cc_mult) if e.kind in ["golem", "warden"] or e.get("elite", false) else 1.0)
 				if key == "slow":
 					e.slow_factor = 0.6 if gift_id == "frost_touch" else 0.5
+				if key == "stun":
+					host.mine.interrupt(e, pid, now())
 				e[key + "_until"] = maxi(int(e.get(key + "_until", 0)), now() + int(duration * 1000.0))
 		"knockback":
-			if not e.is_empty() and e.kind != "golem" and not e.get("elite", false):
+			if not e.is_empty() and e.kind not in ["golem", "warden"] and not e.get("elite", false):
 				host._step(e, (e.pos - p.pos).normalized() * value, Items.ENEMIES[e.kind])
 		"weaken", "sunder":
 			if not e.is_empty():
@@ -260,7 +262,7 @@ func effect(pid: int, key: String, parameter: Variant, ctx: Dictionary, gift_id:
 				deal(pid, other, maxi(1, int(dmg)))
 				origin = target
 		"instakill":
-			if not e.is_empty() and e.kind != "golem" and not e.get("elite", false):
+			if not e.is_empty() and e.kind not in ["golem", "warden"] and not e.get("elite", false):
 				deal(pid, eid, int(e.hp))
 		"mana":
 			if Rules.res_kind(p) == "mana":
@@ -313,6 +315,7 @@ func deal(pid: int, eid: int, damage: int) -> void:
 	var e: Dictionary = host.enemies.get(eid, {})
 	if e.is_empty() or e.hp <= 0 or damage <= 0:
 		return
+	damage = host.mine.damage(pid, e, damage)
 	e.hp = maxi(0, int(e.hp) - damage)
 	host._all("c_enemy_hit", [eid, e.hp, damage, false])
 	if e.hp <= 0:
@@ -341,7 +344,7 @@ func tick_dots(time: int) -> void:
 	for eid in host.enemies.keys():
 		var e: Dictionary = host.enemies[eid]
 		var dots: Array = e.get("gift_dots", [])
-		var budget := float(e.max_hp) * float(Gifts.BOSS_RULES.dot_max_frac) * 0.5 if e.kind == "golem" or e.get("elite", false) else INF
+		var budget := float(e.max_hp) * float(Gifts.BOSS_RULES.dot_max_frac) * 0.5 if e.kind in ["golem", "warden"] or e.get("elite", false) else INF
 		var carry := float(e.get("gift_dot_fraction", 0.0))
 		for dot in dots.duplicate():
 			if time > int(dot.expiry):

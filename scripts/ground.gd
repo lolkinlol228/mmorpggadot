@@ -1,6 +1,8 @@
 extends Node2D
 ## Земля карты (готовая картинка из tools/art/world.py) и названия зон на земле.
 
+const Sites := preload("res://scripts/adventure_sites.gd")
+const ROCK := preload("res://assets/custom/props/rock.png")
 const GROUND := preload("res://assets/custom/world/ground.png")
 
 
@@ -23,3 +25,8 @@ func _ready() -> void:
 
 func _draw() -> void:
 	draw_texture(GROUND, Vector2.ZERO)
+	draw_rect(Sites.MINE, Color("#18252c"))
+	draw_rect(Sites.MINE.grow(-8), Color("#3e5257"), false, 4.0)
+	for i in 54:
+		var point := Sites.MINE.position + Vector2(12 + (i * 137) % 862, 12 + (i * 89) % 658)
+		draw_texture_rect(ROCK, Rect2(point, Vector2(19, 13)), false, Color("#647478"))

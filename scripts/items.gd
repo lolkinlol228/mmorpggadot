@@ -91,7 +91,7 @@ const VALUE := {"recipe_scrap": 25, "recipe_acid_blade": 700, "recipe_moon_bow":
 	"helm": 10, "hood": 6, "armor": 18, "robe": 12,
 	"boots": 6, "potion": 8, "abyss_blade": 6000, "dawn_crown": 6000}
 const RARITY_VALUE := [1, 3, 10, 40, 220, 1500]
-const COIN_DROPS := {"slime": [2, 7], "wolf": [8, 34], "golem": [450, 900], "undead": [12, 30]}
+const COIN_DROPS := {"shell": [12, 22], "ringer": [8, 15], "warden": [600, 950], "slime": [2, 7], "wolf": [8, 34], "golem": [450, 900], "undead": [12, 30]}
 const ICON_SHEET := preload("res://assets/icons/shikashi_icons.png")
 # Своё оружие (tools/art/gen_art.py): строки — тип, столбцы — редкость 0..5.
 const WEAPON_SHEET := preload("res://assets/custom/weapons.png")
@@ -124,6 +124,12 @@ const SHINY_CHANCE := 0.001          # "сияющая" версия любог�
 const BOSS_UNIQUE_CHANCE := 0.0025   # уникальный предмет босса: ~1% за убийство голема
 
 const ENEMIES := {
+	"shell": {"name": "Панцирник", "hp": 85, "dmg": 15, "speed": 53.0, "radius": 16.0,
+		"aggro": 142.0, "cooldown": 2.4, "color": Color.SLATE_GRAY},
+	"ringer": {"name": "Звонарь", "hp": 48, "dmg": 5, "speed": 61.0, "radius": 12.0,
+		"aggro": 146.0, "cooldown": 2.5, "color": Color.GOLDENROD},
+	"warden": {"name": "Колокольный Страж", "hp": 1600, "dmg": 23, "speed": 53.0, "radius": 30.0,
+		"aggro": 190.0, "cooldown": 2.8, "color": Color.DARK_GOLDENROD},
 	"undead": {"name": "Пещерный мертвец", "hp": 58, "dmg": 10, "speed": 75.0, "radius": 15.0,
 		"aggro": 180.0, "cooldown": 1.6, "color": Color(0.5, 0.75, 0.55)},
 	"slime": {"name": "Слизень", "hp": 24, "dmg": 4, "speed": 70.0, "radius": 14.0,

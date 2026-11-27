@@ -21,7 +21,7 @@ const STAT_PER := {"str_dmg": 1.0, "agi_crit": 0.008, "agi_aspd": 0.018, "vit_hp
 	"spd_speed": 0.01, "spd_dodge": 0.006}
 const BASE_STAT := 5
 const POINTS_PER_LEVEL := 4
-const XP_FOR_KILL := {"undead": 27, "slime": 8, "wolf": 18, "golem": 250}
+const XP_FOR_KILL := {"shell": 32, "ringer": 26, "warden": 420, "undead": 27, "slime": 8, "wolf": 18, "golem": 250}
 const SHARE_XP_RADIUS := 320.0      # опыт получают все союзники рядом — играть вместе выгодно
 const OFF_CLASS := 0.5              # чужое оружие и броня дают только половину характеристик
 const SKILL_LEVELS := [1, 2, 4, 6]  # с какого уровня открываются 1-е…4-е умения класса

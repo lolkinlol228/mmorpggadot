@@ -338,6 +338,8 @@ func _process(delta: float) -> void:
 
 
 func _zone_of(p: Vector2) -> Array:
+	if preload("res://scripts/adventure_sites.gd").MINE.has_point(p):
+		return ["Затопленная шахта", "в глубине слышен звон"]
 	var zs: Dictionary = World.zones
 	if World.in_town(p, 0.0):
 		return ["Пепельный Брод", "безопасный город"]

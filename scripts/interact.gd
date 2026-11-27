@@ -57,6 +57,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	draw_circle(Sites.MINE_GATE, 14, Color("#222326") if World.mine_open else Color("#396e89"))
 	draw_rect(Sites.CAVE, Color(0.13, 0.10, 0.20, 0.25))
 	draw_rect(Sites.CAVE, Color(0.46, 0.32, 0.58, 0.48), false, 2.0)
 	for id in game.adventure_marks:

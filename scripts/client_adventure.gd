@@ -16,6 +16,11 @@ func use_spot() -> void:
 	if Vector2(sp.x, sp.y).distance_to(game.my_pos) > 70.0:
 		game.ui.add_feed("Подойди ближе.", game.GREY)
 		return
+	if sp.kind == "mine":
+		game.adventure("mine", sp.action)
+		return
+	if sp.has("actor"):
+		game.adventure("talk", sp.actor)
 	if sp.kind == "adventure":
 		if sp.action == "workshop":
 			game.ui.adventure_panel.show_page(true)

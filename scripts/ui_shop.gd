@@ -196,6 +196,9 @@ func _build_board() -> void:
 func _refresh_board() -> void:
 	for c in board_list.get_children():
 		c.queue_free()
+	board_list.add_child(Kit.label("Затопленная шахта", 9, Kit.GOLD))
+	var quest := preload("res://scripts/mine_quest.gd")
+	board_list.add_child(Kit.label(quest.objective(game.me.quests) if game.me.mine_open else "Победите Каменного Голема", 9))
 	var prog: Dictionary = game.me.get("bounties", {})
 	for b in Items.BOUNTIES:
 		var n := int(prog.get(b.id, 0))

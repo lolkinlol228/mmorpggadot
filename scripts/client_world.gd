@@ -1,6 +1,7 @@
 extends RefCounted
 ## Создание клиентского мира и обновление его узлов.
 
+const Sites := preload("res://scripts/adventure_sites.gd")
 const Ground := preload("res://scripts/ground.gd")
 
 const Fx := preload("res://scripts/fx.gd")
@@ -83,6 +84,13 @@ func _process(delta: float) -> void:
 		if Vector2(sp.x, sp.y).distance_to(game.my_pos) > 90.0:
 			game.ui.shop.close_all()
 			game.open_spot = -1
+	var bounds := Rect2(Vector2.ZERO, World.size)
+	if Sites.MINE.has_point(game.my_pos):
+		bounds = Sites.MINE
+	game.camera.limit_left = int(bounds.position.x)
+	game.camera.limit_top = int(bounds.position.y)
+	game.camera.limit_right = int(bounds.end.x)
+	game.camera.limit_bottom = int(bounds.end.y)
 	game.camera.position = game.my_pos
 	game.client_inventory._auto_pickup()
 

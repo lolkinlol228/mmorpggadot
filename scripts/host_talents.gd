@@ -243,7 +243,7 @@ func intervene(pid: int, incoming: int) -> int:
 ## Награда убийства и постоянный прогресс пожирателя.
 func killed(pid: int, enemy: Dictionary, ctx: Dictionary) -> void:
 	var p: Dictionary = host.players[pid]
-	if enemy.kind == "golem":
+	if enemy.kind in ["golem", "warden"]:
 		if host.gifts.has(p, "boss_aggro_loot"):
 			ctx.extra_drops = roundi(Items.BOSS_DROPS * 0.5)
 		if host.gifts.has(p, "devourer"):
@@ -354,7 +354,7 @@ func action(pid: int, op: String, arg: String) -> void:
 				for eid in host.gifts.nearby(p.pos, 150.0):
 					var e: Dictionary = host.enemies[eid]
 					e.slow_factor = 0.5
-					e.slow_until = maxi(int(e.get("slow_until", 0)), time + (750 if e.kind == "golem" else 3000))
+					e.slow_until = maxi(int(e.get("slow_until", 0)), time + (750 if e.kind in ["golem", "warden"] else 3000))
 		"copy":
 			if host.gifts.has(p, "copy_gift") and time >= int(p.get("gift_copy_at", 0)):
 				var nearest := -1

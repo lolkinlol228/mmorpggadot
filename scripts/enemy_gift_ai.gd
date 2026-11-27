@@ -15,13 +15,15 @@ func target(enemy: Dictionary, stats: Dictionary) -> int:
 		var p: Dictionary = host.players[pid]
 		if p.hp <= 0 or Sites.is_safe(World, p.pos):
 			continue
+		if Sites.MINE.has_point(p.pos) != Sites.MINE.has_point(enemy.pos):
+			continue
 		if (enemy.kind == "undead") != Sites.CAVE.has_point(p.pos):
 			continue
 		var distance: float = enemy.pos.distance_to(p.pos)
 		if distance <= 150.0:
 			curse = curse or host.gifts.has(p, "enemies_stronger25")
 			elite = elite or host.gifts.has(p, "all_elite")
-		var hunted: bool = enemy.kind == "golem" and host.gifts.has(p, "boss_aggro_loot")
+		var hunted: bool = enemy.kind in ["golem", "warden"] and host.gifts.has(p, "boss_aggro_loot")
 		if distance > float(stats.aggro) and not hunted:
 			continue
 		if enemy.kind == "wolf" and host.gifts.has(p, "beast_passive") and not enemy.get("attacked_by", {}).has(pid):
@@ -31,7 +33,7 @@ func target(enemy: Dictionary, stats: Dictionary) -> int:
 			score = weighted
 			result = pid
 	enemy.gift_cursed = curse
-	if elite and enemy.kind != "golem" and not enemy.get("elite", false):
+	if elite and enemy.kind not in ["golem", "warden"] and not enemy.get("elite", false):
 		enemy.elite = true
 		var extra := roundi(enemy.max_hp * 0.5)
 		enemy.max_hp += extra

@@ -3,6 +3,9 @@ extends Node
 ## Коллизии разложены по сетке 128 px, чтобы проверка была быстрой.
 
 const LAYOUT := "res://assets/custom/world/layout.json"
+const Sites := preload("res://scripts/adventure_sites.gd")
+const Quest := preload("res://scripts/mine_quest.gd")
+var mine_open := false
 const CELL := 128.0
 
 var size := Vector2(2400, 1600)
@@ -28,11 +31,23 @@ func _ready() -> void:
 	var sites := preload("res://scripts/adventure_sites.gd")
 	zones.interact.append({"kind": "market", "x": 1100, "y": 1010, "h": 22, "label": "Рынок"})
 	zones.interact.append({"kind": "market", "x": sites.CAMPS.east.x + 30, "y": sites.CAMPS.east.y, "h": 22, "label": "Рынок"})
+	for pair in [[sites.MINE_GATE, "Затопленная шахта", "enter"], [sites.MINE_EXIT, "К Пристани", "leave"]]:
+		zones.interact.append({"kind": "mine", "x": pair[0].x, "y": pair[0].y, "label": pair[1], "action": pair[2], "h": 12})
+	for spot in zones.interact:
+		if spot.label in ["Рыбак", "Горн, кузнец"]:
+			spot.actor = "fisher" if spot.label == "Рыбак" else "smith"
 	for r in data.rects:
 		_add(Rect2(r[0], r[1], r[2], r[3]), ["r", Rect2(r[0], r[1], r[2], r[3])])
 	for c in data.circles:
 		var rad: float = c[2]
 		_add(Rect2(c[0] - rad, c[1] - rad, rad * 2, rad * 2), ["c", Vector3(c[0], c[1], rad)])
+
+
+func update_mine(p: Dictionary) -> void:
+	mine_open = p.mine_open
+	for spot in zones.interact:
+		if spot.has("actor"):
+			spot.lines = [Quest.dialogue(spot.actor, mine_open, p)]
 
 
 func _add(bounds: Rect2, entry: Array) -> void:
@@ -49,6 +64,10 @@ func add_circle(p: Vector2, r: float) -> void:
 
 
 func blocked(p: Vector2, r: float) -> bool:
+	if Sites.MINE.has_point(p):
+		return not Sites.MINE.grow(-maxf(10.0, r)).has_point(p)
+	if not mine_open and p.distance_to(Sites.MINE_GATE) < 13.0 + r:
+		return true
 	if p.x < 28 or p.y < 28 or p.x > size.x - 28 or p.y > size.y - 28:
 		return true
 	var k := Vector2i(int(p.x / CELL), int(p.y / CELL))

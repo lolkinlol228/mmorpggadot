@@ -7,6 +7,9 @@ const SPRITES := {
 	"golem": {"tex": preload("res://assets/custom/golem.png"), "w": 58, "h": 58, "frames": 2, "fps": 1.5},
 }
 
+const MINE_ART := {"shell": "golem", "ringer": "slime", "warden": "golem"}
+var phase := ""
+var heading := Vector2.LEFT
 var elite := false
 var kind := "slime"
 var data: Dictionary = {}
@@ -37,7 +40,7 @@ func _ready() -> void:
 	overlay.z_index = 50
 	add_child(overlay)
 	overlay.draw.connect(_draw_overlay)
-	if kind == "golem":
+	if kind in ["golem", "warden"]:
 		var l := Label.new()
 		l.text = data.name
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -67,7 +70,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var s: Dictionary = SPRITES.get(kind, SPRITES.slime)
+	var s: Dictionary = SPRITES.get(MINE_ART.get(kind, kind), SPRITES.slime)
 	var w: int = s.w
 	var h: int = s.h
 	var fps: float = s.fps if (moving or kind != "wolf") else 0.0
@@ -77,6 +80,8 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, w * 0.42, Color(0, 0, 0, 0.3))
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 	var tint := Color(1, 0.45, 0.45) if hit_t > 0.0 else (Color.PLUM if elite else (Color.PALE_GREEN if kind == "undead" else Color.WHITE))
+	if MINE_ART.has(kind) and hit_t <= 0.0:
+		tint = Color.AQUAMARINE if phase == "open" else data.color.lightened(0.28)
 	if kind == "wolf" and face > 0:      # в листе волк смотрит влево
 		draw_set_transform(Vector2.ZERO, 0, Vector2(-1, 1))
 	draw_texture_rect_region(s.tex, Rect2(-w / 2.0, foot - h + 3, w, h), Rect2(frame * w, 0, w, h), tint)   # +3: запас холста
@@ -84,8 +89,17 @@ func _draw() -> void:
 
 
 func _draw_overlay() -> void:
-	if hp < max_hp or kind == "golem":
-		var s: Dictionary = SPRITES.get(kind, SPRITES.slime)
+	if phase == "ring":
+		var at := Vector2(0, -51)
+		overlay.draw_circle(at, 5, Color.GOLD)
+		overlay.draw_rect(Rect2(at + Vector2(-7, 0), Vector2(14, 3)), Color.GOLD)
+		overlay.draw_circle(at + Vector2(0, 5), 2, Color.ORANGE)
+	if kind in ["shell", "warden"] and phase != "open":
+		var angle := heading.angle()
+		var windup := phase == "windup"
+		overlay.draw_arc(Vector2.ZERO, data.radius + (24 if windup else 4), angle - 1, angle + 1, 16, Color.ORANGE_RED if windup else Color.LIGHT_STEEL_BLUE, 3)
+	if hp < max_hp or kind in ["golem", "warden"]:
+		var s: Dictionary = SPRITES.get(MINE_ART.get(kind, kind), SPRITES.slime)
 		var bw: float = s.w * 0.9
 		var ratio := clampf(float(hp) / max_hp, 0.0, 1.0)
 		var y: float = (6.0 if kind != "golem" else 12.0) - s.h - 5.0
