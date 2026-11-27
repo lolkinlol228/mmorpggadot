@@ -20,16 +20,23 @@ const NAMES := {"human": "человек", "elf": "эльф", "dwarf": "двар
 	"lime": "салатовая", "khaki": "хаки", "greygreen": "серо-зелёная",
 	"light": "светлая", "mid": "смуглая", "dark": "тёмная", "short": "короткая", "long": "длинная",
 	"tail": "хвост", "spiky": "торчком", "braid": "коса", "bob": "каре", "bun": "пучок",
+	"bald": "лысый", "mohawk": "ирокез", "tufts": "клочки", "topknot": "узел", "wisps": "пряди",
+	"goatee": "бородка", "braided": "косички", "leafmark": "листья", "soot": "копоть", "runes": "руны",
+	"tribal": "татуировки", "stitches": "швы", "bones": "оскал", "whiskers": "вибриссы",
+	"stripes": "полоски", "earrings": "серьги",
 	"brown": "каштан", "black": "чёрный", "blond": "блонд", "red": "рыжий", "white": "седой",
 	"none": "нет", "full": "густая", "moustache": "усы", "stubble": "щетина",
 	"scar": "шрам", "freckles": "веснушки", "warpaint": "раскраска"}
-const EYE_NAMES := {"brown": "карие", "blue": "голубые", "green": "зелёные", "grey": "серые", "amber": "янтарные"}
+const EYE_NAMES := {"brown": "карие", "blue": "голубые", "green": "зелёные", "grey": "серые", "amber": "янтарные",
+	"violet": "фиолетовые", "red": "красные", "yellow": "жёлтые", "cyan": "призрачные"}
+const LOOK_KIND := {"skin": "tones", "hair": "hair", "beard": "beards", "marks": "marks", "eyes": "eyes"}
 
 const Gifts := preload("res://scripts/gifts.gd")
 
 var look := {}
 var doll
 var look_labels := {}
+var look_rows := {}
 var race_info: Label
 # класс и судьба
 var cls := "warrior"
@@ -264,15 +271,26 @@ func _build_look(parent: Control) -> void:
 	holder.add_child(box)
 	doll = DollView.new()
 	box.add_child(doll)
+	var tools := HBoxContainer.new()
+	tools.alignment = BoxContainer.ALIGNMENT_CENTER
+	tools.add_theme_constant_override("separation", 4)
+	v.add_child(tools)
+	var turn := Kit.button("Повернуть", _turn_doll)
+	turn.tooltip_text = "Посмотреть героя спереди, сбоку и со спины"
+	tools.add_child(turn)
+	var rnd := Kit.button("Случайно", _random_look)
+	rnd.tooltip_text = "Случайная внешность в пределах выбранной расы"
+	tools.add_child(rnd)
 	CharBaker._load_meta()
 	var m: Dictionary = CharBaker.meta
+	# у причёски, кожи, глаз, бороды и черт свой список у каждой расы (CharBaker.options)
 	for key in [["race", "Раса", m.races.keys()], ["sex", "Пол", ["m", "f"]], ["skin", "Кожа", []],
-			["hair", "Причёска", m.hair_styles], ["hair_color", "Волосы", m.hair_colors],
-			["eyes", "Глаза", CharBaker.EYES.keys()], ["beard", "Борода", ["none"] + m.beards],
-			["marks", "Отметины", ["none"] + m.marks]]:
+			["hair", "Причёска", []], ["hair_color", "Волосы", m.hair_colors],
+			["eyes", "Глаза", []], ["beard", "Борода", []], ["marks", "Черты", []]]:
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 2)
 		v.add_child(h)
+		look_rows[key[0]] = h
 		var cap := Kit.label(key[1], 9, Kit.DIM)
 		cap.custom_minimum_size = Vector2(46, 0)
 		h.add_child(cap)
@@ -292,20 +310,34 @@ func _build_look(parent: Control) -> void:
 
 
 func _cycle(key: String, options: Array, dir: int) -> void:
-	if key == "skin":                         # тона кожи зависят от расы
-		options = CharBaker.meta.races[look.race].tones
-	if key == "beard" and look.race == "dwarf":
-		options = CharBaker.meta.beards        # дварф без бороды не бывает
+	if LOOK_KIND.has(key):                    # список зависит от расы
+		options = CharBaker.options(look.race, LOOK_KIND[key])
 	var i := options.find(look[key])
 	look[key] = options[(i + dir + options.size()) % options.size()]
 	look = CharBaker.sanitize_look(look)
 	_apply_look()
 
 
+func _turn_doll() -> void:
+	doll.row = [2, 0, 1][doll.row]            # лицом → боком → спиной → лицом
+	Sfx.play("open")
+
+
+func _random_look() -> void:
+	var m: Dictionary = CharBaker.meta
+	look.hair_color = m.hair_colors.pick_random()
+	for k in LOOK_KIND:
+		look[k] = CharBaker.options(look.race, LOOK_KIND[k]).pick_random()
+	look = CharBaker.sanitize_look(look)
+	Sfx.play("open")
+	_apply_look()
+
+
 func _apply_look() -> void:
 	for k in look_labels:
 		look_labels[k].text = EYE_NAMES[look[k]] if k == "eyes" else NAMES.get(look[k], look[k])
-		look_labels[k].modulate.a = 0.35 if k == "beard" and look.sex == "f" else 1.0
+	# строка бороды — только если расе и полу есть из чего выбирать
+	look_rows.beard.visible = look.sex == "m" and CharBaker.options(look.race, "beards").size() > 1
 	var r: Dictionary = Rules.RACES[look.race]
 	var st := []
 	for s in r.stats:

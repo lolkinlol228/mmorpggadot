@@ -18,26 +18,57 @@ LAYERS = ["hair_back", "weapon_back", "legs", "feet", "arms_back", "hands_back",
           "arms_front", "hands", "head", "marks", "beard", "headgear", "ears", "hat"]
 SEX = "m"                # текущий пол при генерации: "m" / "f" (влияет на фигуру и лицо)
 EYE_KEY = (255, 0, 255)  # цвет-ключ радужки: в игре заменяется выбранным цветом глаз
-BEARDS = ["full", "moustache", "stubble"]
-MARKS = ["scar", "freckles", "warpaint"]
+BEARDS = ["full", "moustache", "stubble", "goatee", "braided"]
+MARKS = ["scar", "freckles", "warpaint", "leafmark", "soot", "runes", "tribal", "stitches", "bones",
+         "whiskers", "stripes", "earrings"]
 
 SKIN_TONES = {"light": (232, 184, 150), "mid": (204, 146, 108), "dark": (132, 90, 66),
               "pale": (226, 220, 210), "green": (128, 168, 88), "olive": (170, 172, 106),
               "moss": (98, 132, 80), "ash": (168, 168, 176), "bluish": (150, 168, 190),
               "lime": (158, 186, 84), "khaki": (172, 162, 104), "greygreen": (128, 148, 118)}
 RACES = {
-    # dy — рост (сдвиг верха тела), w — ширина фигуры в пикселях (игра растягивает/сужает собранный кадр)
-    "human": {"tones": ["light", "mid", "dark"]},
-    "elf": {"tones": ["light", "pale", "mid"], "dy": -1, "w": -1},
-    "dwarf": {"tones": ["light", "mid", "dark"], "dy": 2, "w": 2},
-    "orc": {"tones": ["green", "olive", "moss"], "w": 4},
-    "undead": {"tones": ["pale", "ash", "bluish"], "w": -1},
-    "felin": {"tones": ["light", "mid", "dark"]},
-    "goblin": {"tones": ["lime", "khaki", "greygreen"], "dy": 3, "w": -1},
+    # dy — рост (сдвиг верха тела), w — ширина фигуры в пикселях (игра растягивает/сужает собранный кадр).
+    # hair / beards / marks / eyes — что доступно расе в создании героя (первое — по умолчанию).
+    "human": {"tones": ["light", "mid", "dark"],
+              "hair": ["short", "long", "tail", "spiky", "braid", "bob", "bun", "bald"],
+              "beards": ["none", "full", "moustache", "stubble", "goatee"],
+              "marks": ["none", "scar", "freckles", "warpaint"],
+              "eyes": ["brown", "blue", "green", "grey", "amber"]},
+    "elf": {"tones": ["light", "pale", "mid"], "dy": -1, "w": -1,
+            "hair": ["long", "tail", "braid", "bun", "bob", "short"],
+            "beards": ["none"],
+            "marks": ["none", "leafmark", "freckles", "scar"],
+            "eyes": ["green", "blue", "violet", "grey", "amber"]},
+    "dwarf": {"tones": ["light", "mid", "dark"], "dy": 2, "w": 2,
+              "hair": ["short", "braid", "long", "topknot", "bald", "bun"],
+              "beards": ["full", "braided", "moustache"],
+              "marks": ["none", "soot", "runes", "scar"],
+              "eyes": ["brown", "blue", "grey", "amber", "green"]},
+    "orc": {"tones": ["green", "olive", "moss"], "w": 4,
+            "hair": ["mohawk", "topknot", "bald", "tail", "braid", "spiky"],
+            "beards": ["none", "goatee", "stubble", "moustache"],
+            "marks": ["none", "warpaint", "tribal", "scar"],
+            "eyes": ["red", "amber", "yellow", "brown"]},
+    "undead": {"tones": ["pale", "ash", "bluish"], "w": -1,
+               "hair": ["wisps", "bald", "long", "short", "spiky"],
+               "beards": ["none", "stubble"],
+               "marks": ["none", "stitches", "bones", "scar"],
+               "eyes": ["cyan", "red", "green", "violet"]},
+    "felin": {"tones": ["light", "mid", "dark"],
+              "hair": ["short", "spiky", "long", "tail", "bob", "bun", "braid"],
+              "beards": ["none"],
+              "marks": ["whiskers", "stripes", "none", "freckles"],
+              "eyes": ["amber", "green", "yellow", "blue"]},
+    "goblin": {"tones": ["lime", "khaki", "greygreen"], "dy": 3, "w": -1,
+               "hair": ["tufts", "bald", "mohawk", "topknot", "spiky", "tail"],
+               "beards": ["none", "goatee", "moustache"],
+               "marks": ["none", "earrings", "warpaint", "scar"],
+               "eyes": ["yellow", "red", "amber", "green"]},
 }
 HAIR_COLORS = {"brown": (112, 72, 46), "black": (50, 46, 60), "blond": (226, 188, 112),
                "red": (180, 80, 46), "white": (214, 214, 226)}
-HAIR_STYLES = ["short", "long", "tail", "spiky", "braid", "bob", "bun"]
+HAIR_STYLES = ["short", "long", "tail", "spiky", "braid", "bob", "bun", "bald", "mohawk", "tufts", "topknot", "wisps"]
+BARE_STYLES = ["bald", "mohawk", "tufts", "topknot", "wisps"]     # без «шапки» волос: голый череп и пряди
 
 HOLD_ANGLE = {0: 72, 1: 100, 2: 38}
 FACING = {0: 90, 1: -90, 2: 0}
@@ -241,7 +272,7 @@ def head_part(d, f, race, tone):
     img = c.render(ambient=0.42)
     dark = (36, 26, 40)
     white = (246, 244, 250)
-    iris = {"undead": (110, 230, 255), "felin": (236, 176, 60), "goblin": (230, 200, 60)}.get(race, EYE_KEY)
+    iris = EYE_KEY
     blush = tuple(min(255, int(v * k)) for v, k in zip(skin, (1.12, 0.86, 0.86)))
     shade_ = tuple(int(v * 0.78) for v in skin)
     lip = tuple(int(v * k) for v, k in zip(skin, (0.82, 0.42, 0.48) if fem else (0.72, 0.5, 0.52)))
@@ -294,23 +325,58 @@ def head_part(d, f, race, tone):
 
 
 def marks_part(d, f, kind):
-    """Face markings over the head: scar, freckles, war paint."""
+    """Face markings over the head. Shared: scar, freckles, war paint. Racial: elf leaf tattoo, dwarf soot
+    and runes, orc tribal stripes, undead stitches and bare jaw, felin whiskers and stripes, goblin earrings."""
     if d == 1:
         return None
     g = skel(d, f)
     cx, cy = g["head"]
     img = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
-    pts = []
+    front = d == 0
+    pts = []                                    # (x, y, цвет)
+
+    def add(col, front_pts, side_pts):
+        for (x, y) in (front_pts if front else side_pts):
+            pts.append((cx + x, cy + y, col))
+
     if kind == "scar":
-        col = (150, 60, 60)
-        pts = [(cx + 2, cy - 1), (cx + 3, cy), (cx + 3, cy + 2), (cx + 4, cy + 3)] if d == 0 else [(cx + 3, cy - 1), (cx + 4, cy), (cx + 4, cy + 3)]
+        add((150, 60, 60), [(2, -1), (3, 0), (3, 2), (4, 3)], [(3, -1), (4, 0), (4, 3)])
     elif kind == "freckles":
-        col = (150, 90, 60)
-        pts = [(cx - 5, cy + 3), (cx - 4, cy + 4), (cx + 2, cy + 4), (cx + 3, cy + 3)] if d == 0 else [(cx + 1, cy + 3), (cx + 2, cy + 4)]
-    else:
-        col = (190, 40, 50)
-        pts = [(cx - 5 + i, cy + 3) for i in range(3)] + [(cx + 1 + i, cy + 3) for i in range(3)] if d == 0 else [(cx + 1 + i, cy + 3) for i in range(3)]
-    for (x, y) in pts:
+        add((150, 90, 60), [(-5, 3), (-4, 4), (2, 4), (3, 3)], [(1, 3), (2, 4)])
+    elif kind == "warpaint":
+        add((190, 40, 50), [(-5 + i, 3) for i in range(3)] + [(1 + i, 3) for i in range(3)], [(1 + i, 3) for i in range(3)])
+    elif kind == "leafmark":                    # эльфийские листья: под глазами и точка на лбу
+        add((60, 176, 128), [(-4, 3), (-4, 4), (2, 3), (2, 4), (-1, -1)], [(2, 3), (2, 4), (3, -1)])
+    elif kind == "soot":                        # копоть кузни
+        add((74, 66, 64), [(-6, 2), (-5, 3), (-6, 3), (3, 2), (4, 3), (-1, -1), (0, -1)], [(1, 2), (1, 3), (2, 3), (4, -1)])
+    elif kind == "runes":                       # светящиеся руны
+        add((96, 176, 255), [(-2, -1), (0, -1), (-1, -2), (-6, 2), (-6, 3), (4, 2), (4, 3)], [(2, -1), (4, -1), (3, -2), (1, 2), (1, 3)])
+    elif kind == "tribal":                      # чёрные полосы орка
+        add((34, 44, 34), [(-6, 1), (-6, 2), (-5, 3), (4, 1), (4, 2), (3, 3), (-2, 5), (0, 5), (-1, -1)],
+            [(1, 1), (1, 2), (2, 3), (4, 5), (3, -1)])
+    elif kind == "stitches":                    # шов через лицо
+        dark = (58, 36, 52)
+        if front:
+            add(dark, [(3, y) for y in range(-1, 5)] + [(2, 0), (4, 0), (2, 3), (4, 3)], [])
+        else:
+            add(dark, [], [(0, y) for y in range(0, 5)] + [(-1, 1), (1, 1), (-1, 3), (1, 3)])
+    elif kind == "bones":                       # оголённая челюсть
+        bone, gap = (222, 214, 194), (60, 44, 52)
+        add(bone, [(1, 3), (2, 3), (3, 3), (1, 4), (3, 4)], [(2, 3), (3, 3), (2, 4)])
+        add(gap, [(2, 4)], [(3, 4)])
+    elif kind == "whiskers":                    # вибриссы кошколюда торчат за щёки
+        col = (62, 52, 52)
+        add(col, [(-6, 3), (-7, 3), (-8, 2), (-6, 4), (-7, 5), (4, 3), (5, 3), (6, 2), (4, 4), (5, 5)],
+            [(5, 3), (6, 3), (7, 2), (5, 4), (6, 5)])
+    elif kind == "stripes":                     # полосы на лбу и щеках
+        col = (104, 70, 48)
+        add(col, [(-6, 1), (-5, 2), (-6, 3), (-5, 4), (4, 1), (3, 2), (4, 3), (3, 4), (-2, -1), (0, -1)],
+            [(0, 2), (1, 3), (0, 4), (3, -1), (5, -1)])
+    elif kind == "earrings":                    # золотые кольца в длинных ушах
+        gold = (236, 190, 70)
+        add(gold, [(-9, 2), (-10, 3), (-8, 3), (-9, 4), (8, 2), (7, 3), (9, 3), (8, 4)],
+            [(-5, 2), (-6, 3), (-4, 3), (-5, 4)])
+    for (x, y, col) in pts:
         _put_any(img, x, y, col)
     return img
 
@@ -329,11 +395,22 @@ def beard_part(d, f, style, color):
         for (x, y) in pts:
             _put_any(img, x, y, dark)
         return img
-    if style == "full":
+    if style == "goatee":                                   # бородка клинышком на подбородке
+        if d == 0:
+            c.sphere(cx - 0.5, cy + 6.4, 1.6, 2.2, m, keep=lambda x, y: y >= cy + 4.6)
+        else:
+            c.sphere(cx + 3.5, cy + 6.2, 1.4, 2.0, m, keep=lambda x, y: y >= cy + 4.6)
+        return c.render()
+    if style in ("full", "braided"):
         if d == 0:
             c.sphere(cx - 0.5, cy + 6.0, 5.2, 4.6, m, keep=lambda x, y: y >= cy + 4)
         else:
             c.sphere(cx + 2.5, cy + 6.0, 3.8, 4.2, m, keep=lambda x, y: y >= cy + 4)
+    if style == "braided":                                  # дварфийские косички с золотыми бусинами
+        bead = Mat((226, 184, 92), spec=0.9)
+        for bx in ((cx - 2.5, cx + 1.5) if d == 0 else (cx + 3.0,)):
+            c.capsule(bx, cy + 8, bx + (0.0 if d == 0 else 0.5), cy + 13, 1.1, m, z=5)
+            c.sphere(bx + (0.0 if d == 0 else 0.3), cy + 11.2, 1.3, 0.8, bead, z=6)
     if d == 0:
         c.capsule(cx - 4, cy + 3.6, cx + 2.5, cy + 3.6, 0.9, m, z=4)
     else:
@@ -414,6 +491,41 @@ def hair_back_part(d, f, style, color):
     return c.render()
 
 
+def _bare_hair(c, d, cx, cy, style, m):
+    """Лысина, ирокез (орк, гоблин), узел на макушке, клочки (гоблин), редкие пряди (нежить)."""
+    hx = cx - 0.5 if d != 2 else cx - 1.0                  # центр черепа
+    if style == "mohawk":
+        if d == 2:                                          # гребень от лба к затылку
+            for a in (65, 90, 115, 140, 165):
+                r = math.radians(a)
+                c.capsule(hx + 5.0 * math.cos(r), cy - 0.5 - 5.0 * math.sin(r),
+                          hx + 9.2 * math.cos(r), cy - 0.5 - 9.2 * math.sin(r), 1.3, m, z=3)
+        else:
+            c.capsule(hx, cy - 4.8, hx, cy - 8.6, 1.1, m, z=3)
+            c.capsule(hx, cy - 8.2, hx + 0.4, cy - 10.6, 0.7, m, z=3)     # острый кончик
+            if d == 1:
+                c.capsule(hx, cy - 6, hx, cy + 2.0, 1.1, m, z=3)
+    elif style == "topknot":
+        kx = hx if d != 2 else hx - 1.5
+        c.capsule(kx, cy - 5, kx, cy - 7.5, 1.3, m, z=3)
+        c.sphere(kx, cy - 9.0, 2.3, 2.0, m, z=4)
+        tie = Mat((160, 40, 50))
+        for i in (-1, 0, 1):
+            c.px(kx + i, cy - 7, 20, (0, 0, 1), tie)
+    elif style == "tufts":
+        strands = {0: [(-3, -5, -5.5, -9.5), (-0.5, -6, 0, -10.5), (2, -5, 4.5, -9)],
+                   1: [(-3, -5, -5, -9), (-0.5, -6, -1, -10.5), (2, -5, 4, -9.5)],
+                   2: [(-1, -5.5, -2.5, -10), (-4, -4, -7.5, -7.5), (1.5, -5.5, 3, -9.5)]}[d]
+        for (x0, y0, x1, y1) in strands:
+            c.capsule(cx + x0, cy + y0, cx + x1, cy + y1, 0.9, m, z=3)
+    elif style == "wisps":
+        strands = {0: [(-5.8, -3, -6.8, 6), (4.8, -3, 5.8, 6), (0, -6, 1.5, -8.5)],
+                   1: [(-3, -4, -3.5, 7), (-0.5, -5, -0.5, 8), (2, -4, 2.5, 7)],
+                   2: [(-3, -4.5, -5, 6), (-5.5, -2, -7, 5), (0, -6, 1, -8.5)]}[d]
+        for (x0, y0, x1, y1) in strands:
+            c.capsule(cx + x0, cy + y0, cx + x1, cy + y1, 0.8, m, z=3)
+
+
 def hair_part(d, f, style, color):
     m = Mat(HAIR_COLORS[color], tex=tex_strands)
     g = skel(d, f)
@@ -425,7 +537,9 @@ def hair_part(d, f, style, color):
         side = x < cx - 5.5 or x > cx + 4.5
         return y <= (cy + 1.5 if side else bang)
 
-    if d == 0:
+    if style in BARE_STYLES:
+        _bare_hair(c, d, cx, cy, style, m)
+    elif d == 0:
         c.sphere(cx - 0.5, cy - 1.0, 6.8, 6.0, m, keep=fringe_down)
     elif d == 1:
         c.sphere(cx - 0.5, cy - 0.4, 6.9, 6.3, m, keep=lambda x, y: y <= cy + 4)

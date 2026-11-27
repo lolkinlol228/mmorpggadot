@@ -10,6 +10,7 @@ var equip := {}:
 		sheet = CharBaker.bake(equip, look)
 var sheet: Texture2D
 var t := 0.0
+var row := 0                       # 0 — лицом, 1 — спиной, 2 — боком
 
 
 func _ready() -> void:
@@ -29,4 +30,4 @@ func _draw() -> void:
 	draw_set_transform(Vector2(32, 60), 0, Vector2(1, 0.35))
 	draw_circle(Vector2.ZERO, 14, Color(0, 0, 0, 0.3))
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-	draw_texture_rect_region(sheet, Rect2(Vector2(-16, -16), Vector2(96, 96)), Rect2(frame * 48, 0, 48, 48))
+	draw_texture_rect_region(sheet, Rect2(Vector2(-16, -16), Vector2(96, 96)), Rect2(frame * 48, row * 48, 48, 48))

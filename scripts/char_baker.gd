@@ -12,7 +12,8 @@ const SLOT_FOR_LAYER := {"torso": "body", "arms_front": "body", "arms_back": "bo
 const DEFAULT_LOOK := {"race": "human", "sex": "m", "skin": "light", "hair": "short", "hair_color": "brown",
 	"eyes": "brown", "beard": "none", "marks": "none"}
 const EYES := {"brown": Color8(110, 70, 42), "blue": Color8(70, 124, 214), "green": Color8(72, 156, 84),
-	"grey": Color8(132, 142, 156), "amber": Color8(214, 150, 40)}
+	"grey": Color8(132, 142, 156), "amber": Color8(214, 150, 40), "violet": Color8(150, 92, 214),
+	"red": Color8(214, 52, 40), "yellow": Color8(232, 206, 58), "cyan": Color8(110, 230, 255)}
 const SEX_SHARED := ["hair_", "beard_", "ears_", "tail_", "marks_"]   # эти листы общие для обоих полов
 const LOWER := ["legs", "feet"]                 # всё остальное — «верх», его сдвигает рост расы
 const CELL := 48
@@ -76,23 +77,32 @@ static func _layer_source(layer: String, equip: Dictionary, look: Dictionary) ->
 	return "%s_body_%s" % [look.sex, layer]
 
 
+## Что доступно расе: kind = "tones", "hair", "beards", "marks" или "eyes" (первое — по умолчанию).
+static func options(race: String, kind: String) -> Array:
+	_load_meta()
+	var r: Dictionary = meta.races.get(race, meta.races.human)
+	match kind:
+		"hair": return r.get("hair", meta.hair_styles)
+		"beards": return r.get("beards", ["none"] + meta.beards)
+		"marks": return r.get("marks", ["none"] + meta.marks)
+		"eyes": return r.get("eyes", EYES.keys())
+	return r.tones
+
+
 static func sanitize_look(look) -> Dictionary:
 	_load_meta()
 	var out := DEFAULT_LOOK.duplicate()
-	if look is Dictionary:
-		if str(look.get("race", "")) in meta.races: out.race = str(look.race)
-		var tones: Array = meta.races[out.race].tones
-		out.skin = str(look.get("skin", "")) if str(look.get("skin", "")) in tones else tones[0]
-		if str(look.get("hair", "")) in meta.hair_styles: out.hair = str(look.hair)
-		if str(look.get("hair_color", "")) in meta.hair_colors: out.hair_color = str(look.hair_color)
-		if str(look.get("sex", "")) in ["m", "f"]: out.sex = str(look.sex)
-		if str(look.get("eyes", "")) in EYES: out.eyes = str(look.eyes)
-		if str(look.get("beard", "")) in meta.beards: out.beard = str(look.beard)
-		if str(look.get("marks", "")) in meta.marks: out.marks = str(look.marks)
+	var src: Dictionary = look if look is Dictionary else {}
+	if str(src.get("race", "")) in meta.races: out.race = str(src.race)
+	if str(src.get("sex", "")) in ["m", "f"]: out.sex = str(src.sex)
+	if str(src.get("hair_color", "")) in meta.hair_colors: out.hair_color = str(src.hair_color)
+	# всё остальное — из списка расы; чужое (каре у гоблина, борода у эльфа) сбрасывается на расовое
+	for pair in [["skin", "tones"], ["hair", "hair"], ["beard", "beards"], ["marks", "marks"], ["eyes", "eyes"]]:
+		var opts := options(out.race, pair[1])
+		var v := str(src.get(pair[0], ""))
+		out[pair[0]] = v if v in opts else opts[0]
 	if out.sex == "f":
-		out.beard = "none"
-	elif out.race == "dwarf" and out.beard == "none":
-		out.beard = "full"                                    # дварф без бороды — не дварф
+		out.beard = "none"                                    # бороды и у дварфиек нет
 	return out
 
 
