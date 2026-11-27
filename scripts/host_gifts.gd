@@ -311,11 +311,11 @@ func shield(pid: int, amount: int) -> void:
 
 
 ## Вторичный урон без повторного запуска событий удара.
-func deal(pid: int, eid: int, damage: int) -> void:
+func deal(pid: int, eid: int, damage: int, wound := false) -> void:
 	var e: Dictionary = host.enemies.get(eid, {})
 	if e.is_empty() or e.hp <= 0 or damage <= 0:
 		return
-	damage = host.mine.damage(pid, e, damage)
+	damage = host.mine.damage(pid, e, damage, false, wound)
 	e.hp = maxi(0, int(e.hp) - damage)
 	host._all("c_enemy_hit", [eid, e.hp, damage, false])
 	if e.hp <= 0:

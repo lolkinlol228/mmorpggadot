@@ -94,9 +94,9 @@ static func armor(e: Dictionary, from: Vector2, damage: int, now: int) -> int:
 	return damage
 
 
-func damage(pid: int, e: Dictionary, amount: int, silence := false) -> int:
+func damage(pid: int, e: Dictionary, amount: int, silence := false, wound := false) -> int:
 	var now := Time.get_ticks_msec()
-	if host.players.has(pid):
+	if host.players.has(pid) and not wound:
 		amount = armor(e, host.players[pid].pos, amount, now)
 	if silence or amount >= float(e.max_hp) * 0.15:
 		interrupt(e, pid, now)

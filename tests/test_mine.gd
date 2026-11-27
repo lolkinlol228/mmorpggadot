@@ -81,6 +81,23 @@ func quest() -> void:
 	check(p.quests.step == 5 and root.get_node("Save").sanitize_char(p).quests == p.quests, "Порядок и сохранение цепочки")
 
 
+func forge() -> void:
+	var p: Dictionary = host.players[1]
+	var items := root.get_node("Items")
+	var spot: Dictionary = host.professions.spots[11]
+	p.pos = Vector2(spot.x, spot.y)
+	p.equip.weapon = items.make("sword", 0, "", false)
+	p.inv[0].count = 2
+	host.adventure("forge", "pierce")
+	check(p.inv[0].count == 2 and not p.equip.weapon.has("forge"), "Свойство другого стиля отклонено")
+	host.adventure("forge", "riposte")
+	host.adventure("forge", "riposte")
+	check(p.equip.weapon.forge == "riposte" and p.inv[0].count == 1, "Списание одного осколка")
+	host.adventure("forge", "cleave")
+	check(p.inv.is_empty() and items.normalize(p.equip.weapon).forge == "cleave", "Перековка хранится в вещи")
+	check("50%" in items.tooltip(p.equip.weapon), "Свойство в подсказке")
+
+
 func _run() -> void:
 	var save := root.get_node("Save")
 	var original: String = save.WORLD_PATH
@@ -95,6 +112,7 @@ func _run() -> void:
 	host.players[1] = player(1, Sites.CAMPS.ford)
 	encounters()
 	quest()
+	forge()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(save.WORLD_PATH))
 	save.WORLD_PATH = original
 	host.free()

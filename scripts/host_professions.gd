@@ -39,8 +39,11 @@ func handle(pid: int, op: String, arg: String) -> void:
 			message = use_spot(pid, spots[i])
 	elif op == "field":
 		message = field(pid)
-	elif op in ["make", "repair", "salvage", "transmute", "relic"] and near_workshop(p):
+	elif op in ["forge", "make", "repair", "salvage", "transmute", "relic"] and near_workshop(p):
 		match op:
+			"forge":
+				message = preload("res://scripts/weapon_forge.gd").apply(p, Items.style_of(p.equip.get("weapon")), arg)
+				host._all("c_equip", [pid, p.equip.duplicate(true)])
 			"relic": message = preload("res://scripts/relics.gd").craft(host, pid, arg)
 			"make": message = craft(pid, arg)
 			"repair":

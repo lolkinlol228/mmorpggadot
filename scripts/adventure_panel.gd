@@ -84,6 +84,14 @@ func _workshop_page(p: Dictionary) -> void:
 	var tools: Dictionary = p.get("tools", {})
 	var stock: Dictionary = p.get("materials", {})
 	var coins := int(p.get("coins", 0))
+	var weapon: Dictionary = p.equip.get("weapon", {})
+	if p.quests.step >= 2 and not weapon.is_empty():
+		var forge := preload("res://scripts/weapon_forge.gd")
+		_header("Перековка · " + Items.display_name(weapon))
+		rows.add_child(Kit.label("Одно свойство за один осколок ядра", 9, Kit.DIM))
+		for key in forge.OPTIONS[Items.style_of(weapon)]:
+			var active: bool = key == weapon.get("forge")
+			add_action(("✓ " if active else "") + forge.NAMES[key], "forge", key, not active and Relics.count(p.inv, "golem_shard") > 0)
 	_header("Инструмент")
 	var wear := float(tools.get("wear", 0.0))
 	rows.add_child(Kit.label("Тир %d · износ %.1f / %d" % [int(tools.get("tier", 1)), wear, int(Professions.MAX_WEAR)], 9,

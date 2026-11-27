@@ -275,6 +275,7 @@ func normalize(d) -> Dictionary:
 	if not BASES.has(base):
 		return {}
 	return {
+		"forge": _forge_of(base, d.get("forge", "")),
 		"uid": str(d.get("uid", new_uid())).left(40), "base": base,
 		"rarity": clampi(int(d.get("rarity", 0)), 0, 5), "shiny": bool(d.get("shiny", false)), "golden": bool(d.get("golden", false)), "socketed": bool(d.get("socketed", false)),
 		"dmg": clampi(int(d.get("dmg", 0)), 0, 999), "armor": clampi(int(d.get("armor", 0)), 0, 999),
@@ -282,6 +283,13 @@ func normalize(d) -> Dictionary:
 		"serial": maxi(0, int(d.get("serial", 0))),
 		"count": clampi(int(d.get("count", 1)), 1, 99999999),
 	}
+
+
+func _forge_of(base: String, value: Variant) -> String:
+	var forge := preload("res://scripts/weapon_forge.gd")
+	if BASES[base].slot == "weapon" and value in forge.OPTIONS.get(style_of({"base": base}), []):
+		return value
+	return ""
 
 
 func slot_of(it: Dictionary) -> String:
@@ -323,6 +331,10 @@ func tooltip(it: Dictionary) -> String:
 		lines.append("Клик в сумке — выпить")
 		lines.append("Цена у торговки: %s" % format_coins(value(it)))
 		return "\n".join(lines)
+	if it.get("forge", "") != "":
+		lines.append("Ковка Горна · " + preload("res://scripts/weapon_forge.gd").NAMES[it.forge])
+	if it.base == "golem_shard":
+		lines.append("Рыбак у Пристани знает проход. Покажи осколок Горну для перековки оружия.")
 	if b.has("teaches"):
 		lines.append("Рецепт реликвии · клик в сумке — изучить навсегда")
 		lines.append("Учит ковать: %s" % BASES[b.teaches].name)

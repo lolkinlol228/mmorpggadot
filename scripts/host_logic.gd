@@ -139,6 +139,7 @@ func update_pos(pos: Vector2, facing: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	host_players.sync_local()
+	preload("res://scripts/weapon_forge.gd").bleed(self, Time.get_ticks_msec())
 	mine.tick()
 	_enemy_ai(delta)
 	gifts.update()
@@ -171,6 +172,7 @@ func dash(dir: Vector2) -> void:
 		return
 	if not p.gift_dash.consume(p, skills.has_buff(p, "pounce")):
 		return
+	preload("res://scripts/weapon_forge.gd").on_dash(p)
 	p.invuln_until = maxi(int(p.get("invuln_until", 0)), Time.get_ticks_msec() + 260)
 	var from: Vector2 = p.pos
 	var end := World.move(from, dir.normalized() * game.SPEED * game.DASH_SPEED * 0.2 * Rules.Gifts.factor(p, "dash_dist"))

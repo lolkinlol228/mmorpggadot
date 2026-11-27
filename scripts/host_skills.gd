@@ -94,11 +94,15 @@ func on_hurt(pid: int) -> void:
 # ---------- удар по врагу ----------
 
 ## Один удар по одному врагу. opts: slow (сек), execute (порог здоровья для ×2), leech (доля урона в лечение).
+const Forge := preload("res://scripts/weapon_forge.gd")
+
 func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Dictionary = {}) -> void:
 	var p: Dictionary = host.players[pid]
 	var e: Dictionary = host.enemies.get(eid, {})
 	if e.is_empty():
 		return
+	var w: Dictionary = p.equip.get("weapon", {})
+	var forge: String = w.get("forge", "")
 	var gifts = host.gifts
 	var skill := bool(opts.get("skill", false))
 	var ctx := {"eid": eid, "enemy": e, "skill": skill}
@@ -106,6 +110,8 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 	if skill:
 		bonus += float(gifts.mod(pid, "skill_crit", ctx))
 	var crit := randf() < clampf(Rules.base_crit_chance(p) + bonus + float(p.get("gift_crit_chain", 0.0)), 0.0, Gifts.CAPS.crit)
+	if Forge.consume_critical(p, w):
+		crit = true
 	gifts.combat(pid, ctx)
 	if Gifts.has_flag(p, "first_crit"):
 		var hits: Dictionary = p.get_or_add("gift_first", {})
@@ -129,14 +135,20 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 	if has_buff(p, "warcry"):
 		dmg *= 1.0 + 0.4 * float(p.get("gift_buff_power", {}).get("warcry", 1.0))
 	if int(p.get("riposte_until", 0)) > now_ms():          # ответный удар после парирования
-		dmg *= float(p.get("gift_riposte", Rules.PARRY.riposte))
+		dmg *= maxf(float(p.get("gift_riposte", Rules.PARRY.riposte)), 2.0 if forge == "riposte" else 0.0)
 		p.erase("gift_riposte")
 		p.riposte_until = 0
 	if e.kind not in ["golem", "warden"] and opts.has("execute") and float(e.hp) < float(e.max_hp) * float(opts.execute):
 		dmg *= 2.0
 	if e.kind not in ["golem", "warden"] and not e.get("elite", false) and Gifts.has_flag(p, "execute15") and gifts.ratio(e) < 0.15:
 		dmg = maxf(dmg, e.hp)
-	var d: int = host.mine.damage(pid, e, maxi(1, int(dmg)))
+	if forge == "crusher" and now_ms() < int(e.get("stun_until", 0)):
+		dmg *= 1.4
+	opts.impact = maxi(1, int(dmg))
+	var d: int = host.mine.damage(pid, e, opts.impact, forge == "silence" and opts.get("projectile", false))
+	if Forge.third_hit(p, w):
+		e.stun_until = maxi(int(e.get("stun_until", 0)), now_ms() + 500)
+		host.mine.interrupt(e, pid, now_ms())
 	var dealt := mini(int(e.hp), d)
 	e.hp = maxi(0, int(e.hp) - d)
 	host._all("c_enemy_hit", [eid, e.hp, d, crit])
@@ -145,6 +157,8 @@ func hit_enemy(pid: int, eid: int, mult: float, crit_bonus: float, opts: Diction
 		e.slow_until = now_ms() + int(float(opts.slow) * 1000.0 * (Gifts.BOSS_RULES.cc_mult if e.kind in ["golem", "warden"] or e.get("elite", false) else 1.0))
 	var leech := clampf(float(opts.get("leech", 0.0)) + float(gifts.mod(pid, "lifesteal", ctx)), 0.0, Gifts.CAPS.lifesteal)
 	_heal(pid, int(dealt * leech))
+	if forge == "bleed" and e.hp > 0:
+		e.get_or_add("wounds", []).append({"pid": pid, "hid": p.hid, "start": now_ms(), "amount": dealt, "tick": 0})
 	ctx.damage = dealt
 	ctx.raw_damage = d
 	gifts.fire(pid, "hit", ctx)
@@ -174,27 +188,28 @@ func strike(pid: int, center: Vector2, radius: float, mult: float, crit_bonus: f
 func bolt(pid: int, dir: Vector2, reach: float, mult: float, aoe: float, crit_bonus: float, look: String, opts: Dictionary = {}) -> void:
 	var p: Dictionary = host.players[pid]
 	var from: Vector2 = p.pos
-	var best_t := reach
-	var best := -1
+	var hits: Array = []
 	for eid in host.enemies:
 		var e: Dictionary = host.enemies[eid]
 		var rel: Vector2 = e.pos - from
 		var t := rel.dot(dir)
-		if t < 0.0 or t > best_t:
-			continue
-		if absf(rel.cross(dir)) <= float(Items.ENEMIES[e.kind].radius) + 6.0:
-			best_t = t
-			best = eid
-	var end := from + dir * best_t
-	host._all("c_shot", [from, end, look, aoe * (host.gifts.factor(pid, "aoe") if opts.get("skill", false) else 1.0)])
-	if best == -1:
-		return
-	if aoe > 0.0:
-		strike(pid, host.enemies[best].pos, aoe, mult, crit_bonus, opts)
-	else:
-		hit_enemy(pid, best, mult, crit_bonus, opts)
-		if Rules.res_kind(p) == "rage":
-			add_res(p, RAGE_PER_HIT)
+		if t >= 0 and t <= reach and absf(rel.cross(dir)) <= float(Items.ENEMIES[e.kind].radius) + 6.0:
+			hits.append([t, eid, e.pos])
+	hits.sort()
+	var piercing: bool = p.equip.get("weapon", {}).get("forge") == "pierce"
+	var count := mini(hits.size(), 2 if piercing else 1)
+	var distance := float(hits[count - 1][0]) if count else reach
+	host._all("c_shot", [from, from + dir * distance, look, aoe * (host.gifts.factor(pid, "aoe") if opts.get("skill", false) else 1.0)])
+	opts = opts.duplicate()
+	opts.projectile = true
+	for i in count:
+		if aoe > 0 and i == count - 1:
+			strike(pid, hits[i][2], aoe, mult, crit_bonus, opts)
+		elif host.enemies.has(hits[i][1]):
+			hit_enemy(pid, hits[i][1], mult, crit_bonus, opts)
+	if count > 0 and aoe <= 0 and Rules.res_kind(p) == "rage":
+		add_res(p, RAGE_PER_HIT)
+
 
 
 func _heal(pid: int, amount: int, from_skill: bool = false, caster: int = -1) -> void:
@@ -399,6 +414,23 @@ func basic_attack(pid: int, dir: Vector2) -> void:
 		var w: Dictionary = p.equip.get("weapon", {})
 		var look := "arrow" if style == "shot" else ("holy" if w.get("base", "") == "wand" else "arcane")
 		bolt(pid, dir, float(st[4]), float(st[1]), 0.0, float(st[3]), look)
+	elif p.equip.get("weapon", {}).get("forge") == "cleave":
+		var center: Vector2 = p.pos + dir * float(st[4])
+		var nearby: Array = host.gifts.nearby(center, float(st[2]) + 34)
+		nearby.sort_custom(func(a, b): return host.enemies[a].pos.distance_squared_to(center) < host.enemies[b].pos.distance_squared_to(center))
+		for eid in nearby:
+			var e: Dictionary = host.enemies[eid]
+			if e.pos.distance_to(center) > float(st[2]) + Items.ENEMIES[e.kind].radius:
+				continue
+			var impact := {}
+			var second: Array = host.gifts.nearby(e.pos, 55)
+			hit_enemy(pid, eid, float(st[1]), float(st[3]), impact)
+			second.erase(eid)
+			if not second.is_empty():
+				host.gifts.deal(pid, second[0], maxi(1, roundi(impact.impact * 0.5)))
+			if Rules.res_kind(p) == "rage":
+				add_res(p, RAGE_PER_HIT)
+			break
 	else:
 		strike(pid, p.pos + dir * float(st[4]), float(st[2]), float(st[1]), float(st[3]))
 
