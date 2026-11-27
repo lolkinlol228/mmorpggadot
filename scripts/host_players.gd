@@ -9,6 +9,13 @@ func register(data: Dictionary) -> void:
 	if host.players.has(id):
 		return
 	var p := Save.sanitize_char(data)
+	for present in host.players.values():
+		if present.name == p.name or present.hid == p.hid:
+			host._to(id, "c_register_denied", ["Герой с таким именем уже в мире"])
+			return
+	if not host.market.claim_legacy(p):
+		host._to(id, "c_register_denied", ["Не удалось сохранить владельца лотов. Попробуйте ещё раз."])
+		return
 	p.merge({"pos": host.game.SPAWN + Vector2(randf_range(-30, 30), randf_range(-10, 20)),
 		"facing": Vector2.RIGHT, "trade": 0, "invite": -1, "cds": {}, "buffs": {}})
 	p.peer_id = id

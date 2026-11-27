@@ -47,7 +47,10 @@ func load_char(pname: String, cls: String = "warrior", gifts: Array = []) -> Dic
 		raw["cls"] = cls
 		raw["gifts"] = gifts
 		clear_fate()
-	return sanitize_char(raw)
+	var hero := sanitize_char(raw)
+	if hero.hid != raw.get("hid"):
+		store_char(hero)
+	return hero
 
 
 ## Новый герой: стартовый набор своего класса (оружие и броня), немного монет и зелий.
@@ -57,8 +60,10 @@ func new_char(pname: String, cls: String, gifts: Array) -> Dictionary:
 	for base in c.kit:
 		equip[Items.slot_of({"base": base})] = Items.make(base, 0, pname, false)
 	clear_fate()                                   # судьба потрачена на этого героя
-	return sanitize_char({"name": pname, "coins": 30, "equip": equip, "inv": [Items.make_potion(2)],
+	var hero := sanitize_char({"name": pname, "coins": 30, "equip": equip, "inv": [Items.make_potion(2)],
 		"look": {}, "bank": [], "bounties": {}, "cls": cls, "gifts": gifts})
+	store_char(hero)
+	return hero
 
 
 func store_char(data: Dictionary) -> void:
@@ -70,11 +75,16 @@ func store_char(data: Dictionary) -> void:
 
 ## Проверка данных персонажа, пришедших по сети или из файла.
 func sanitize_char(d) -> Dictionary:
-	var out := {"name": "Игрок", "coins": 0, "inv": [], "equip": {}, "look": {}, "bank": [], "bounties": {},
+	var out := {"hid": "", "name": "Игрок", "coins": 0, "inv": [], "equip": {}, "look": {}, "bank": [], "bounties": {},
 		"level": 1, "xp": 0, "points": 0, "stats": {}, "cls": "warrior", "gifts": [], "gift_state": {"fate_blade": 0, "devourer": 0, "pet": false},
 		"materials": {}, "professions": {}, "visited": {"ford": true}, "tools": {"wear": 0.0, "tier": 1}, "cross_skill": "", "recipes": []}
 	if not (d is Dictionary):
 		return out
+	var hid = d.get("hid", "")
+	if hid is String and hid.length() == 32 and hid.is_valid_hex_number(false) and not hid.begins_with("-") and not hid.begins_with("+"):
+		out.hid = hid.to_lower()
+	else:
+		out.hid = Crypto.new().generate_random_bytes(16).hex_encode()
 	var n := str(d.get("name", "")).strip_edges().left(16)
 	out.name = n if n != "" else "Игрок"
 	out.coins = clampi(int(d.get("coins", d.get("gold", 0))), 0, 999999999)   # старые сейвы: gold -> медяки

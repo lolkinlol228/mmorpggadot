@@ -34,7 +34,7 @@ class MarketHost:
 	func _to(pid: int, method: StringName, args: Array = []) -> void:
 		if method == "c_market":
 			responses[pid] = args[0]
-		elif method == "c_announce":
+		elif method in ["c_announce", "c_register_denied"]:
 			messages.append(args[0])
 
 var host := MarketHost.new()
@@ -62,7 +62,7 @@ func check(condition: bool, message: String) -> void:
 func player(name: String, money: int = 10000) -> Dictionary:
 	var world := root.get_node("World")
 	var board: Dictionary = world.zones.interact.filter(func(s): return s.kind == "market")[0]
-	return {"name": name, "coins": money, "inv": [], "equip": {}, "trade": 0, "hp": 100,
+	return {"hid": name.md5_text(), "name": name, "coins": money, "inv": [], "equip": {}, "trade": 0, "hp": 100,
 		"pos": Vector2(board.x, board.y), "gifts": []}
 
 
@@ -114,16 +114,16 @@ func sale() -> void:
 	act(2, "buy", {"id": id})
 	check(host.players[2].coins == 9000 and host.players[2].inv.size() == 1 and market.lots.is_empty(), "Покупка списала цену и удалила лот")
 	check(host.players[2].inv[0] == sword and host.players[2].inv[0].serial == 42, "Сохранены uid, serial и весь словарь вещи")
-	check(market.payouts["Продавец"] == 950, "Комиссия 5% и выплата отсутствующему продавцу")
+	check(market.payouts["Продавец".md5_text()] == 950, "Комиссия 5% и выплата отсутствующему продавцу")
 	act(3, "buy", {"id": id})
 	check(host.players[3].coins == 10000 and host.players[3].inv.is_empty(), "Повторная покупка отклонена")
 	host.players[1] = offline
 	act(1, "collect")
 	act(1, "collect")
-	check(offline.coins == 10930 and market.payouts["Продавец"] == 0, "Выплату можно получить один раз")
+	check(offline.coins == 10930 and market.payouts["Продавец".md5_text()] == 0, "Выплату можно получить один раз")
 	check(market.history.size() == 1 and market.last_price(sword) == 1000, "Записана последняя цена")
 	market.load_state()
-	check(market.history.size() == 1 and market.payouts["Продавец"] == 0, "Мир загрузил историю и получение выплаты")
+	check(market.history.size() == 1 and market.payouts["Продавец".md5_text()] == 0, "Мир загрузил историю и получение выплаты")
 	check(root.get_node("Save").load_world(path).serial == test_serial, "Рыночные записи сохраняют серийный счётчик")
 
 
@@ -193,17 +193,17 @@ func expiration() -> void:
 	market.lots[id].posted_at = market.now() - market.LIFETIME
 	market.persist()
 	market.load_state()
-	check(not market.lots.has(id) and market.returns["Продавец"][0] == sword, "Истёкший во время перезапуска лот возвращается")
+	check(not market.lots.has(id) and market.returns["Продавец".md5_text()][0] == sword, "Истёкший во время перезапуска лот возвращается")
 	for i in 23:
 		host.players[1].inv.append(item())
 	act(1, "collect")
-	check(market.returns["Продавец"].size() == 1, "Возврат ждёт места в сумке")
+	check(market.returns["Продавец".md5_text()].size() == 1, "Возврат ждёт места в сумке")
 	host.players[1].inv.pop_back()
 	act(1, "collect")
-	check(market.returns["Продавец"].is_empty() and host.players[1].inv.back() == sword, "Освобождённое место позволяет забрать возврат")
+	check(market.returns["Продавец".md5_text()].is_empty() and host.players[1].inv.back() == sword, "Освобождённое место позволяет забрать возврат")
 	market.lots[market.lots.keys()[0]].posted_at = market.now() - market.LIFETIME
 	market.tick(1.1)
-	check(market.returns["Продавец"].size() == 1, "Срок проверяется в игровом тике")
+	check(market.returns["Продавец".md5_text()].size() == 1, "Срок проверяется в игровом тике")
 
 
 ## Дары применяются к комиссии, даже если продавец отключился.
@@ -218,7 +218,7 @@ func fees() -> void:
 	check(is_equal_approx(market.lots[id].seller_factor, 1.3), "Доля комиссии продавца сохраняется")
 	host.players.erase(1)
 	act(2, "buy", {"id": id})
-	check(market.payouts["Продавец"] == 948, "Комиссия учитывает дары обеих сторон")
+	check(market.payouts["Продавец".md5_text()] == 948, "Комиссия учитывает дары обеих сторон")
 	check(market.commission(1000, 0.0, 0.0) == 10 and market.deposit(1) == 1, "Нижний предел комиссии 1%, залога один медяк")
 
 
@@ -264,8 +264,8 @@ func disk_failure() -> void:
 	check(host.players[2].coins == 10000 and host.players[2].inv.is_empty() and market.snapshot() == before, "Сбой записи отменяет покупку и выплату")
 	act(1, "cancel", {"id": id})
 	check(host.players[1].inv.is_empty() and market.lots.has(id), "Сбой записи отменяет снятие")
-	market.payouts["Продавец"] = 950
-	market.returns["Продавец"] = [item()]
+	market.payouts["Продавец".md5_text()] = 950
+	market.returns["Продавец".md5_text()] = [item()]
 	before = market.snapshot()
 	act(1, "collect")
 	check(host.players[1].coins == 9980 and host.players[1].inv.is_empty() and market.snapshot() == before, "Сбой записи отменяет получение монет и возвратов")
@@ -287,22 +287,56 @@ func persistence() -> void:
 	save.store_world({"serial": test_serial + 1}, path)
 	market.load_state()
 	check(market.lots.has(id) and market.lots[id].item == sword, "Запись serial сохраняет активные лоты и полную вещь")
-	market.payouts["Продавец"] = 950
+	market.payouts["Продавец".md5_text()] = 950
 	host.players[1].coins = market.WALLET_MAX - 10
 	act(1, "collect")
-	check(host.players[1].coins == market.WALLET_MAX and market.payouts["Продавец"] == 940, "Переполнение кошелька оставляет остаток у доски")
+	check(host.players[1].coins == market.WALLET_MAX and market.payouts["Продавец".md5_text()] == 940, "Переполнение кошелька оставляет остаток у доски")
 	market.load_state()
-	check(market.payouts["Продавец"] == 940 and market.lots.has(id), "Лоты и остаток выплаты переживают перезапуск")
+	check(market.payouts["Продавец".md5_text()] == 940 and market.lots.has(id), "Лоты и остаток выплаты переживают перезапуск")
 	var world := root.get_node("World")
 	var boards: Array = world.zones.interact.filter(func(spot): return spot.kind == "market")
 	check(boards.size() == 2, "Есть две доски рынка")
 	host.players[1].pos = Vector2(boards[1].x, boards[1].y)
 	host.players[1].coins -= 1000
 	act(1, "collect")
-	check(market.payouts["Продавец"] == 0, "Выплату можно забрать на Пристани")
+	check(market.payouts["Продавец".md5_text()] == 0, "Выплату можно забрать на Пристани")
 
 
 ## Запускает тесты в отдельном файле, сохраняя пользовательский мир.
+func identity() -> void:
+	reset()
+	var first: Dictionary = host.players[1]
+	var second: Dictionary = host.players[2]
+	second.name = first.name
+	var sword := item()
+	first.inv.append(sword)
+	act(1, "post", {"uid": sword.uid, "price": 100})
+	var id: String = market.lots.keys()[0]
+	market.lots[id].erase("hid")
+	market.payouts[first.name] = 45
+	market.returns[first.name] = [item()]
+	market.persist()
+	market.load_state()
+	check(market.claim_legacy(first), "Первый владелец принял старые записи")
+	market.load_state()
+	check(market.claim_legacy(second), "Повторный вход тёзки")
+	act(2, "cancel", {"id": id})
+	act(2, "collect")
+	var view: Dictionary = market.page(2, {})
+	check(view.own.is_empty() and view.payout == 0 and view.returns == 0 and second.inv.is_empty() and second.coins == 10000, "Тёзка не получает чужие вещи или деньги")
+	check(market.page(1, {}).own.size() == 1 and market.payouts[first.hid] == 45 and market.returns[first.hid].size() == 1, "Перенос принадлежит первому hid после перезапуска")
+	check(not market.payouts.has(first.name) and not market.returns.has(first.name), "Старые ключи удалены")
+	var registry = load("res://scripts/host_players.gd").new()
+	registry.host = host
+	host.sender = 4
+	registry.register(second)
+	check(not host.players.has(4) and host.messages.back() == "Герой с таким именем уже в мире", "Вход тёзки отклонён")
+	var alias := first.duplicate()
+	alias.name = "Другое имя"
+	registry.register(alias)
+	check(not host.players.has(4), "Повторный hid отклонён")
+
+
 func _run() -> void:
 	root.add_child(host)
 	var script := load("res://scripts/host_market.gd") as GDScript
@@ -320,6 +354,7 @@ func _run() -> void:
 	root.get_node("Save").store_world({"serial": test_serial}, path)
 	market.load_state()
 	check(market.lots.is_empty(), "Старый мир без рынка загружается")
+	identity()
 	sale()
 	restrictions()
 	expiration()

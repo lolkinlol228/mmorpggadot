@@ -249,7 +249,7 @@ func render() -> void:
 			var hours := maxf(0.0, (int(lot.posted_at) + Market.LIFETIME - Time.get_unix_time_from_system()) / 3600.0)
 			detail += " · Осталось %.1f ч" % hours
 		add_item_row(lot.item, detail, "Купить" if tab == 0 else "Снять",
-			ask_buy.bind(lot) if tab == 0 else cancel.bind(lot.id), tab == 0 and lot.seller == Net.player_name)
+			ask_buy.bind(lot) if tab == 0 else cancel.bind(lot.id), tab == 0 and lot.owned)
 	page_label.text = "%d / %d" % [int(data.page) + 1, int(data.pages)]
 	previous.disabled = int(data.page) <= 0
 	next.disabled = int(data.page) + 1 >= int(data.pages)

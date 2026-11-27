@@ -221,6 +221,11 @@ func h_eco(op: String, arg: String) -> void:
 # ---------- сообщения от хоста (картинка и интерфейс) ----------
 
 @rpc("authority", "call_remote", "reliable")
+func c_register_denied(reason: String) -> void:
+	client_session.registration_denied(reason)
+
+
+@rpc("authority", "call_remote", "reliable")
 func c_init(ps: Array, es: Array, ls: Array, priv: Dictionary) -> void:
 	client_session.c_init(ps, es, ls, priv)
 

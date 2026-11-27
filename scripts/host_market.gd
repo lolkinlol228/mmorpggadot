@@ -113,13 +113,34 @@ func tick(delta: float) -> void:
 
 
 ## Перекладывает просроченные вещи в отложенные возвраты.
+func claim_legacy(p: Dictionary) -> bool:
+	var previous := snapshot()
+	var changed := false
+	for lot in lots.values():
+		if not lot.has("hid") and lot.seller == p.name:
+			lot.hid = p.hid
+			changed = true
+	if payouts.has(p.name):
+		payouts[p.hid] = int(payouts.get(p.hid, 0)) + int(payouts[p.name])
+		payouts.erase(p.name)
+		changed = true
+	if returns.has(p.name):
+		returns.get_or_add(p.hid, []).append_array(returns[p.name])
+		returns.erase(p.name)
+		changed = true
+	if changed and not persist():
+		restore(previous)
+		return false
+	return true
+
+
 func expire() -> bool:
 	var previous := snapshot()
 	var changed := false
 	for id in lots.keys():
 		var lot: Dictionary = lots[id]
 		if now() - int(lot.posted_at) >= LIFETIME:
-			var queue: Array = returns.get_or_add(lot.seller, [])
+			var queue: Array = returns.get_or_add(lot.get("hid", lot.seller), [])
 			queue.append(lot.item.duplicate(true))
 			lots.erase(id)
 			changed = true
@@ -209,7 +230,7 @@ func post(pid: int, uid: String, price: int) -> Dictionary:
 			return result(false, "Вещь уже выставлена.")
 	var count := 0
 	for lot in lots.values():
-		count += int(lot.seller == p.name)
+		count += int(lot.get("hid", "") == p.hid)
 	if count >= MAX_LOTS:
 		return result(false, "Можно выставить не больше 8 лотов.")
 	var pledge := deposit(price)
@@ -217,7 +238,7 @@ func post(pid: int, uid: String, price: int) -> Dictionary:
 		return result(false, "Не хватает монет для залога.")
 	var id := Items.new_uid()
 	var item: Dictionary = p.inv[index].duplicate(true)
-	lots[id] = {"id": id, "seller": p.name, "item": item, "price": price, "posted_at": now(),
+	lots[id] = {"id": id, "hid": p.hid, "seller": p.name, "item": item, "price": price, "posted_at": now(),
 		"seller_factor": host.gifts.factor(pid, "sell_price")}
 	p.inv.remove_at(index)
 	p.coins -= pledge
@@ -230,7 +251,7 @@ func buy(pid: int, id: String) -> Dictionary:
 	if not lots.has(id):
 		return result(false, "Лот уже куплен или снят.")
 	var lot: Dictionary = lots[id]
-	if lot.seller == p.name:
+	if lot.get("hid", "") == p.hid:
 		return result(false, "Нельзя купить свой лот.")
 	if now() - int(lot.posted_at) >= LIFETIME:
 		return result(false, "Срок лота истёк.")
@@ -240,17 +261,17 @@ func buy(pid: int, id: String) -> Dictionary:
 		return result(false, "Сумка полна.")
 	var fee := commission(int(lot.price), float(lot.seller_factor), host.gifts.factor(pid, "buy_price"))
 	var net := int(lot.price) - fee
-	if int(payouts.get(lot.seller, 0)) > 9007199254740991 - net:
+	if int(payouts.get(lot.get("hid", lot.seller), 0)) > 9007199254740991 - net:
 		return result(false, "Кошелёк выплат продавца переполнен.")
 	p.inv.append(lot.item.duplicate(true))
 	p.coins -= int(lot.price)
-	payouts[lot.seller] = int(payouts.get(lot.seller, 0)) + net
+	payouts[lot.get("hid", lot.seller)] = int(payouts.get(lot.get("hid", lot.seller), 0)) + net
 	lots.erase(id)
 	history.append({"item": lot.item.duplicate(true), "price": int(lot.price), "time": now()})
 	if history.size() > 50:
 		history.pop_front()
 	var response := result(true, "Продано: %s за %s" % [Items.display_name(lot.item), Items.format_coins(lot.price)])
-	response.seller = lot.seller
+	response.seller = lot.get("hid", "")
 	return response
 
 
@@ -258,7 +279,7 @@ func buy(pid: int, id: String) -> Dictionary:
 func cancel(pid: int, id: String) -> Dictionary:
 	var p: Dictionary = host.players[pid]
 	var lot: Dictionary = lots.get(id, {})
-	if lot.is_empty() or lot.seller != p.name:
+	if lot.is_empty() or lot.get("hid", "") != p.hid:
 		return result(false, "Лот не найден.")
 	if p.inv.size() >= Items.bag_capacity(p):
 		return result(false, "Освободите место в сумке.")
@@ -270,10 +291,10 @@ func cancel(pid: int, id: String) -> Dictionary:
 ## Забирает доступные монеты и столько возвратов, сколько помещается в сумку.
 func collect(pid: int) -> Dictionary:
 	var p: Dictionary = host.players[pid]
-	var money := mini(int(payouts.get(p.name, 0)), maxi(0, WALLET_MAX - int(p.coins)))
+	var money := mini(int(payouts.get(p.hid, 0)), maxi(0, WALLET_MAX - int(p.coins)))
 	p.coins += money
-	payouts[p.name] = int(payouts.get(p.name, 0)) - money
-	var queue: Array = returns.get_or_add(p.name, [])
+	payouts[p.hid] = int(payouts.get(p.hid, 0)) - money
+	var queue: Array = returns.get_or_add(p.hid, [])
 	var received := 0
 	while not queue.is_empty() and p.inv.size() < Items.bag_capacity(p):
 		p.inv.append(queue.pop_front())
@@ -302,9 +323,11 @@ func page(pid: int, query: Dictionary) -> Dictionary:
 	var rarity := int(query.get("rarity", -1))
 	for lot in lots.values():
 		var visible: Dictionary = lot.duplicate(true)
+		visible.erase("hid")
+		visible.owned = lot.get("hid", "") == p.hid
 		visible.fee = commission(int(lot.price), float(lot.seller_factor), host.gifts.factor(pid, "buy_price"))
 		visible.last_price = last_price(lot.item)
-		if lot.seller == p.name:
+		if lot.get("hid", "") == p.hid:
 			own.append(visible)
 		if (slot == "" or Items.slot_of(lot.item) == slot) and (rarity == -1 or int(lot.item.rarity) == rarity) and (text.is_empty() or text in Items.display_name(lot.item).to_lower()):
 			found.append(visible)
@@ -315,7 +338,7 @@ func page(pid: int, query: Dictionary) -> Dictionary:
 	var pages := maxi(1, ceili(found.size() / float(PAGE_SIZE)))
 	var number := mini(int(query.get("page", 0)), pages - 1)
 	return {"lots": found.slice(number * PAGE_SIZE, (number + 1) * PAGE_SIZE), "page": number, "pages": pages,
-		"own": own, "payout": int(payouts.get(p.name, 0)), "returns": returns.get(p.name, []).size(),
+		"own": own, "payout": int(payouts.get(p.hid, 0)), "returns": returns.get(p.hid, []).size(),
 		"seller_factor": host.gifts.factor(pid, "sell_price"), "history": history.duplicate(true), "query": query.duplicate()}
 
 
@@ -336,7 +359,7 @@ static func price_from_history(item: Dictionary, entries: Array) -> int:
 ## Уведомляет продавца, если он сейчас в игре.
 func notify_seller(seller: String, message: String) -> void:
 	for pid in host.players:
-		if host.players[pid].name == seller and host.players[pid].hp > 0:
+		if host.players[pid].hid == seller and host.players[pid].hp > 0:
 			host._to(pid, "c_announce", [message, Color.WHEAT])
 
 
