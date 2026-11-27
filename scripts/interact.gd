@@ -5,6 +5,7 @@ extends Node2D
 
 const Sites := preload("res://scripts/adventure_sites.gd")
 const Kit := preload("res://scripts/ui_kit.gd")
+const MINE_GATE := preload("res://assets/custom/world/mine_gate.png")
 const RANGE := 40.0
 const ICONS := {"market": Vector2i(13, 12),"bank": "coin", "shop": Vector2i(0, 10), "board": "!", "talk": Vector2i(1, 4)}
 
@@ -57,7 +58,8 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	draw_circle(Sites.MINE_GATE, 14, Color("#222326") if World.mine_open else Color("#396e89"))
+	var gate := Rect2(Sites.MINE_GATE - Vector2(22, 26), Vector2(44, 34))   # tools/art/mine.py: затоплен | открыт
+	draw_texture_rect_region(MINE_GATE, gate, Rect2(44 if World.mine_open else 0, 0, 44, 34))
 	draw_rect(Sites.CAVE, Color(0.13, 0.10, 0.20, 0.25))
 	draw_rect(Sites.CAVE, Color(0.46, 0.32, 0.58, 0.48), false, 2.0)
 	for id in game.adventure_marks:

@@ -6,6 +6,7 @@ var game
 var done := {}
 var elapsed := 0.0
 var finished_at := -1.0
+var seen := {}                # когда гость впервые оказался у цели — камера успевает доехать до снимка
 
 
 func once(key: String) -> bool:
@@ -27,6 +28,17 @@ func _process(delta: float) -> void:
 		host_step()
 	else:
 		guest_step()
+
+
+func arrived(key: String) -> bool:
+	return elapsed - float(seen.get_or_add(key, elapsed)) > 1.0
+
+
+## Снимок экрана гостя в папку --shots (окно, не headless).
+func shot(name: String) -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--shots=") and DisplayServer.get_name() != "headless":
+			get_viewport().get_texture().get_image().save_png("%s/mine_%s.png" % [arg.trim_prefix("--shots="), name])
 
 
 func npc(actor: String) -> Vector2:
@@ -113,9 +125,11 @@ func guest_step() -> void:
 	if q.step == 2 and game.me.equip.weapon.get("forge", "") == "" and once("forge"):
 		var style := Items.style_of(game.me.equip.weapon)
 		game.adventure("forge", preload("res://scripts/weapon_forge.gd").OPTIONS[style][0])
-	if game.me.equip.weapon.get("forge", "") != "" and game.my_pos.distance_to(Sites.MINE_GATE) < 55 and once("enter"):
+	if game.me.equip.weapon.get("forge", "") != "" and game.my_pos.distance_to(Sites.MINE_GATE) < 55 and arrived("gate") and once("enter"):
+		shot("gate")
 		game.adventure("mine", "enter")
-	if q.step == 4 and game.my_pos.distance_to(Vector2(3400, 300)) < 48 and once("hit"):
+	if q.step == 4 and game.my_pos.distance_to(Vector2(3400, 300)) < 48 and arrived("warden") and once("hit"):
+		shot("warden")
 		game._to_host("h_attack", [Vector2.RIGHT])
 	if q.step == 5 and has_trophies(game.me) and once("loot"):
 		print("[autotest] Гость видит обе личные награды в сумке. Цепочка завершена.")

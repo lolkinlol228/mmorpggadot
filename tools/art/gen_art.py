@@ -47,6 +47,9 @@ def build_enemies():
         "slime.png": hstack([enemies.slime(f) for f in range(2)]),
         "wolf.png": hstack([enemies.wolf(f) for f in range(4)]),
         "golem.png": hstack([enemies.golem(f) for f in range(2)]),
+        "shell.png": hstack([enemies.shell(f) for f in range(2)]),
+        "ringer.png": hstack([enemies.ringer(f) for f in range(2)]),
+        "warden.png": hstack([enemies.warden(f) for f in range(2)]),
     }
     for name, img in sheets.items():
         img.save(OUT / name)

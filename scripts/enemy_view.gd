@@ -5,9 +5,13 @@ const SPRITES := {
 	"slime": {"tex": preload("res://assets/custom/slime.png"), "w": 30, "h": 26, "frames": 2, "fps": 3.0},
 	"wolf": {"tex": preload("res://assets/custom/wolf.png"), "w": 40, "h": 26, "frames": 4, "fps": 10.0},
 	"golem": {"tex": preload("res://assets/custom/golem.png"), "w": 58, "h": 58, "frames": 2, "fps": 1.5},
+	"shell": {"tex": preload("res://assets/custom/shell.png"), "w": 42, "h": 32, "frames": 2, "fps": 3.0},
+	"ringer": {"tex": preload("res://assets/custom/ringer.png"), "w": 34, "h": 38, "frames": 2, "fps": 2.0},
+	"warden": {"tex": preload("res://assets/custom/warden.png"), "w": 62, "h": 64, "frames": 2, "fps": 1.5},
 }
 
-const MINE_ART := {"shell": "golem", "ringer": "slime", "warden": "golem"}
+const MINE_KINDS := ["shell", "ringer", "warden"]
+const FACES_LEFT := ["wolf", "shell", "ringer", "warden"]   # в листах эти враги смотрят влево
 var phase := ""
 var heading := Vector2.LEFT
 var elite := false
@@ -70,19 +74,20 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var s: Dictionary = SPRITES.get(MINE_ART.get(kind, kind), SPRITES.slime)
+	var s: Dictionary = SPRITES.get(kind, SPRITES.slime)
 	var w: int = s.w
 	var h: int = s.h
 	var fps: float = s.fps if (moving or kind != "wolf") else 0.0
 	var frame := int(t * fps) % int(s.frames)
-	var foot := 6.0 if kind != "golem" else 12.0
+	var foot := 12.0 if kind in ["golem", "warden"] else 6.0
 	draw_set_transform(Vector2(0, foot), 0, Vector2(1, 0.35))
 	draw_circle(Vector2.ZERO, w * 0.42, Color(0, 0, 0, 0.3))
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 	var tint := Color(1, 0.45, 0.45) if hit_t > 0.0 else (Color.PLUM if elite else (Color.PALE_GREEN if kind == "undead" else Color.WHITE))
-	if MINE_ART.has(kind) and hit_t <= 0.0:
-		tint = Color.AQUAMARINE if phase == "open" else data.color.lightened(0.28)
-	if kind == "wolf" and face > 0:      # в листе волк смотрит влево
+	if kind in MINE_KINDS and hit_t <= 0.0 and phase == "open":
+		tint = Color(0.6, 1.0, 0.9)          # окно уязвимости после замаха
+	var right := heading.x > 0.0 if kind in ["shell", "warden"] else face > 0.0   # щит панцирника смотрит туда же, куда его броня
+	if kind in FACES_LEFT and right:
 		draw_set_transform(Vector2.ZERO, 0, Vector2(-1, 1))
 	draw_texture_rect_region(s.tex, Rect2(-w / 2.0, foot - h + 3, w, h), Rect2(frame * w, 0, w, h), tint)   # +3: запас холста
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
@@ -99,9 +104,9 @@ func _draw_overlay() -> void:
 		var windup := phase == "windup"
 		overlay.draw_arc(Vector2.ZERO, data.radius + (24 if windup else 4), angle - 1, angle + 1, 16, Color.ORANGE_RED if windup else Color.LIGHT_STEEL_BLUE, 3)
 	if hp < max_hp or kind in ["golem", "warden"]:
-		var s: Dictionary = SPRITES.get(MINE_ART.get(kind, kind), SPRITES.slime)
+		var s: Dictionary = SPRITES.get(kind, SPRITES.slime)
 		var bw: float = s.w * 0.9
 		var ratio := clampf(float(hp) / max_hp, 0.0, 1.0)
-		var y: float = (6.0 if kind != "golem" else 12.0) - s.h - 5.0
+		var y: float = (12.0 if kind in ["golem", "warden"] else 6.0) - s.h - 5.0
 		overlay.draw_rect(Rect2(-bw / 2, y, bw, 3), Color(0, 0, 0, 0.7))
 		overlay.draw_rect(Rect2(-bw / 2, y, bw * ratio, 3), Color(0.85, 0.22, 0.2))
