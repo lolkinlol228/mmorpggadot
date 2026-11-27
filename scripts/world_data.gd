@@ -3,9 +3,12 @@ extends Node
 ## Коллизии разложены по сетке 128 px, чтобы проверка была быстрой.
 
 const LAYOUT := "res://assets/custom/world/layout.json"
+const MINE_LAYOUT := "res://assets/custom/world/mine.json"   # tools/art/mine.py: фонари и предметы шахты
 const Sites := preload("res://scripts/adventure_sites.gd")
 const Quest := preload("res://scripts/mine_quest.gd")
 var mine_open := false
+var mine_lights: Array = []
+var mine_top := 0.0          # северный откос шахты: на него не зайти
 const CELL := 128.0
 
 var size := Vector2(2400, 1600)
@@ -41,6 +44,13 @@ func _ready() -> void:
 	for c in data.circles:
 		var rad: float = c[2]
 		_add(Rect2(c[0] - rad, c[1] - rad, rad * 2, rad * 2), ["c", Vector3(c[0], c[1], rad)])
+	var mine = JSON.parse_string(FileAccess.get_file_as_string(MINE_LAYOUT))
+	if mine is Dictionary:
+		mine_lights = mine.lights
+		mine_top = Sites.MINE.position.y + float(mine.top_face)
+		for p in mine.props:
+			props.append({"k": p.k, "x": p.x, "y": p.y})
+			add_circle(Vector2(p.x, p.y - 4), float(p.r))
 
 
 func update_mine(p: Dictionary) -> void:
@@ -68,11 +78,17 @@ func blocked(p: Vector2, r: float) -> bool:
 		for wall: Rect2 in Sites.MINE_WALLS:
 			if wall.grow(r).has_point(p):
 				return true
-		return not Sites.MINE.grow(-maxf(10.0, r)).has_point(p)
+		if p.y < mine_top + r or not Sites.MINE.grow(-maxf(10.0, r)).has_point(p):
+			return true
+		return _hits_grid(p, r)
 	if not mine_open and p.distance_to(Sites.MINE_GATE) < 13.0 + r:
 		return true
 	if p.x < 28 or p.y < 28 or p.x > size.x - 28 or p.y > size.y - 28:
 		return true
+	return _hits_grid(p, r)
+
+
+func _hits_grid(p: Vector2, r: float) -> bool:
 	var k := Vector2i(int(p.x / CELL), int(p.y / CELL))
 	for e in _grid.get(k, []):
 		if e[0] == "r":

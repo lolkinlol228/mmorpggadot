@@ -30,8 +30,8 @@ func _process(delta: float) -> void:
 		guest_step()
 
 
-func arrived(key: String) -> bool:
-	return elapsed - float(seen.get_or_add(key, elapsed)) > 1.0
+func arrived(key: String, wait := 1.0) -> bool:
+	return elapsed - float(seen.get_or_add(key, elapsed)) > wait
 
 
 ## Снимок экрана гостя в папку --shots (окно, не headless).
@@ -128,7 +128,7 @@ func guest_step() -> void:
 	if game.me.equip.weapon.get("forge", "") != "" and game.my_pos.distance_to(Sites.MINE_GATE) < 55 and arrived("gate") and once("enter"):
 		shot("gate")
 		game.adventure("mine", "enter")
-	if q.step == 4 and game.my_pos.distance_to(Vector2(3400, 300)) < 48 and arrived("warden") and once("hit"):
+	if q.step == 4 and game.my_pos.distance_to(Vector2(3400, 300)) < 48 and arrived("warden", 3.0) and once("hit"):
 		shot("warden")
 		game._to_host("h_attack", [Vector2.RIGHT])
 	if q.step == 5 and has_trophies(game.me) and once("loot"):

@@ -23,6 +23,20 @@ func _ready() -> void:
 		add_child(lab)
 
 
+	for l in World.mine_lights:                       # фонари шахты: тёплое пятно поверх всего
+		var g := Node2D.new()
+		g.position = Vector2(l[0], l[1] + 3)
+		g.z_index = 5
+		g.z_as_relative = false
+		var mat := CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		g.material = mat
+		g.set_script(load("res://scripts/glow.gd"))
+		g.set("radius", float(l[2]) * 0.5)
+		g.set("flicker", true)
+		add_child(g)
+
+
 func _draw() -> void:
 	draw_texture(GROUND, Vector2.ZERO)
 	draw_texture(MINE_FLOOR, Sites.MINE.position)

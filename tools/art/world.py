@@ -397,7 +397,8 @@ def build(out_dir):
     import ground_clean
     img, river_dist = ground_clean.render()
     img.save(out_dir / "ground.png", optimize=True)
-    mask = (river_dist < RIVER_W / 2 - 2)
+    yy = np.arange(H)[:, None]
+    mask = (river_dist < RIVER_W / 2 - 2) & ~((yy >= BRIDGE_Y[0]) & (yy < BRIDGE_Y[1]))   # блики воды не ложатся на мост
     Image.fromarray((mask * 255).astype(np.uint8), "L").save(out_dir / "water_mask.png")
     lay = layout(river_dist)
     (out_dir / "layout.json").write_text(json.dumps(lay, ensure_ascii=False), encoding="utf-8")

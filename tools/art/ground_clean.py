@@ -209,7 +209,7 @@ def render():
             put_decal(img, x, y, FLOWER, {"c": fc[0], "d": fc[1]})
         else:
             put_decal(img, x, y, PEBBLE, pcol)
-    ys, xs = np.nonzero(road & ~plaza & (dp >= half - 3))              # grass tufts creeping over road edges
+    ys, xs = np.nonzero(road & ~plaza & ~dilate(bridge | water, 3) & (dp >= half - 3))   # трава по краям дороги, но не на мосту
     for i in rnd.sample(range(len(xs)), min(len(xs), 2200)):
         put_decal(img, int(xs[i]) - 2, int(ys[i]) - 1, TUFT if i % 2 else TUFT2, tcol)
     for _ in range(900):                                                 # pebbles along roads

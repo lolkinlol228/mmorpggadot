@@ -4,6 +4,7 @@ extends Node
 ## (считается от системных часов), поэтому синхронизировать его по сети не нужно.
 
 const PlayerView := preload("res://scripts/player_view.gd")
+const Sites := preload("res://scripts/adventure_sites.gd")
 const WATER_MASK := preload("res://assets/custom/world/water_mask.png")
 const DAY_LENGTH := 480.0          # секунд на полный цикл
 const CHIMNEY := {"house": 24.0, "forge": 26.0, "tavern": 28.0}
@@ -64,6 +65,8 @@ func _process(_delta: float) -> void:
 		if phase >= a[0] and phase <= b[0]:
 			c = (a[1] as Color).lerp(b[1], (phase - a[0]) / maxf(0.001, b[0] - a[0]))
 			break
+	if Sites.MINE.has_point(game.my_pos):    # в шахте всегда полумрак, светят фонари
+		c = Color(0.76, 0.77, 0.9)
 	tint.color = c
 	World.night = clampf((1.0 - c.g) / 0.44, 0.0, 1.0)
 	(vignette.material as ShaderMaterial).set_shader_parameter("strength", 0.35 + World.night * (0.08 if Rules.Gifts.has_flag(game.me, "night_vision") else 0.35))
